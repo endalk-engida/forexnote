@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" id="metaThemeColor" />
+  <meta name="description" content="Offline-first Forex Trading Journal PWA with Google Drive sync" />
+  <title>FX Journal — Trading Log</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <!-- Dexie.js (IndexedDB wrapper) -->
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+
+  <!-- Google Identity Services (OAuth2) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Tailwind config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#22d3ee',
+              dark: '#0891b2',
+              glow: 'rgba(34,211,238,0.15)'
+            },
+            win:  { DEFAULT: '#22c55e', bg: 'rgba(34,197,94,0.12)'  },
+            loss: { DEFAULT: '#ef4444', bg: 'rgba(239,68,68,0.12)'   },
+            surface: {
+              '900': '#0a0f1e',
+              '800': '#0f172a',
+              '700': '#1e293b',
+              '600': '#334155',
+              '500': '#475569',
+            }
+          },
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            glow: '0 0 20px rgba(34,211,238,0.2)',
+            card: '0 4px 24px rgba(0,0,0,0.4)',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-surface-900 text-slate-100 font-sans min-h-screen antialiased transition-colors duration-300">
+
+  <!-- ═══════════════════════════════════════════
+       HEADER
+  ═══════════════════════════════════════════ -->
+  <header class="app-header sticky top-0 z-40">
+    <div class="header-inner max-w-7xl mx-auto px-4">
+
+      <!-- ── Left: Logo ── -->
+      <div class="header-logo">
+        <div class="logo-icon">
+          <i class="fa-solid fa-chart-line"></i>
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">FX Journal</span>
+          <span class="logo-sub">Trading Log</span>
+        </div>
+      </div>
+
+      <!-- ── Center: Month Navigation (desktop) ── -->
+      <div class="month-nav-desktop">
+        <button onclick="Calendar.prevMonth()" class="nav-arrow-btn" aria-label="Previous month">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span id="calendarMonthLabel" class="month-label"></span>
+        <button onclick="Calendar.nextMonth()" class="nav-arrow-btn" aria-label="Next month">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- ── Center: Mobile Checklist Button (mobile only, absolutely centred) ── -->
+      <button onclick="Checklist.open()" class="hdr-checklist-mobile" title="Trade Checklist" aria-label="Open Trade Checklist">
+        <i class="fas fa-list-check"></i>
+        <span>Checklist</span>
+      </button>
+
+      <!-- ── Right: Desktop Controls ── -->
+      <div class="header-controls-desktop">
+
+        <!-- Network Status Badge -->
+        <div id="networkBadge" class="network-badge">
+          <span id="networkDot" class="network-dot"></span>
+          <span id="networkText">Checking…</span>
+        </div>
+
+        <!-- Checklist Button -->
+        <button onclick="Checklist.open()" class="ctrl-btn ctrl-btn-label" title="Trade Checklist">
+          <i class="fas fa-list-check"></i>
+          <span>Checklist</span>
+        </button>
+
+        <!-- Admin Button -->
+        <button onclick="ChecklistAdmin.open()" title="Manage Checklist" class="ctrl-btn ctrl-btn-icon">
+          <i class="fas fa-gear"></i>
+        </button>
+
+        <!-- Google Drive Button -->
+        <button id="btnGoogleDrive" onclick="GoogleDriveSync.connectGoogleDrive()" class="ctrl-btn ctrl-btn-label" title="Connect Google Drive">
+          <i class="fab fa-google-drive"></i>
+          <span id="driveLabel">Connect Drive</span>
+        </button>
+
+        <!-- Manual Sync -->
+        <button id="btnSync" onclick="GoogleDriveSync.syncPendingTrades()" title="Sync to Drive" class="ctrl-btn ctrl-btn-icon">
+          <i class="fas fa-rotate-right" id="syncIcon"></i>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggle" onclick="Theme.toggle()" class="ctrl-btn ctrl-btn-icon theme-toggle-btn" title="Toggle theme">
+          <i class="fas fa-moon" id="themeIcon"></i>
+        </button>
+
+      </div>
+
+      <!-- ── Right: Mobile Controls (always visible) ── -->
+      <div class="header-controls-mobile">
+
+        <!-- Network dot (compact) -->
+        <div id="networkBadgeMobile" class="network-badge-mobile">
+          <span id="networkDotMobile" class="network-dot"></span>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button onclick="Theme.toggle()" class="ctrl-btn ctrl-btn-icon" title="Toggle theme">
+          <i class="fas fa-moon" id="themeIconMobile"></i>
+        </button>
+
+        <!-- Hamburger -->
+        <button id="menuToggle" onclick="MobileMenu.toggle()" class="hamburger-btn" aria-label="Toggle menu" aria-expanded="false">
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+        </button>
+
+      </div>
+
+    </div><!-- /header-inner -->
+
+    <!-- ── Mobile Dropdown Menu ── -->
+    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+      <div class="mobile-menu-inner">
+
+        <!-- Month Navigation -->
+        <div class="mobile-section-label">Navigation</div>
+        <div class="mobile-month-nav">
+          <button onclick="Calendar.prevMonth(); MobileMenu.close()" class="nav-arrow-btn">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <span id="calendarMonthLabelMobile" class="month-label"></span>
+          <button onclick="Calendar.nextMonth(); MobileMenu.close()" class="nav-arrow-btn">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+
+        <div class="mobile-divider"></div>
+        <div class="mobile-section-label">Tools</div>
+
+        <!-- Checklist -->
+        <button onclick="Checklist.open(); MobileMenu.close()" class="mobile-menu-item">
+          <div class="mobile-menu-icon bg-brand/10 text-brand">
+            <i class="fas fa-list-check"></i>
+          </div>
+          <div class="mobile-menu-text">
+            <span class="mobile-menu-title">Trade Checklist</span>
+            <span class="mobile-menu-desc">Run pre-trade criteria</span>
+          </div>
+          <i class="fas fa-chevron-right mobile-menu-arrow"></i>
+        </button>
+
+        <!-- Admin -->
+        <button onclick="ChecklistAdmin.open(); MobileMenu.close()" class="mobile-menu-item">
+          <div class="mobile-menu-icon bg-slate-700 text-slate-300">
+            <i class="fas fa-gear"></i>
+          </div>
+          <div class="mobile-menu-text">
+            <span class="mobile-menu-title">Manage Checklist</span>
+            <span class="mobile-menu-desc">Add or edit checklist items</span>
+          </div>
+          <i class="fas fa-chevron-right mobile-menu-arrow"></i>
+        </button>
+
+        <!-- Google Drive -->
+        <button id="btnGoogleDriveMobile" onclick="GoogleDriveSync.connectGoogleDrive(); MobileMenu.close()" class="mobile-menu-item">
+          <div class="mobile-menu-icon bg-blue-500/10 text-blue-400">
+            <i class="fab fa-google-drive"></i>
+          </div>
+          <div class="mobile-menu-text">
+            <span class="mobile-menu-title" id="driveLabelMobile">Connect Drive</span>
+            <span class="mobile-menu-desc">Sync trades to Google Drive</span>
+          </div>
+          <i class="fas fa-chevron-right mobile-menu-arrow"></i>
+        </button>
+
+        <!-- Manual Sync -->
+        <button id="btnSyncMobile" onclick="GoogleDriveSync.syncPendingTrades(); MobileMenu.close()" class="mobile-menu-item">
+          <div class="mobile-menu-icon bg-purple-500/10 text-purple-400">
+            <i class="fas fa-rotate-right" id="syncIconMobile"></i>
+          </div>
+          <div class="mobile-menu-text">
+            <span class="mobile-menu-title">Sync Now</span>
+            <span class="mobile-menu-desc">Push pending trades to Drive</span>
+          </div>
+          <i class="fas fa-chevron-right mobile-menu-arrow"></i>
+        </button>
+
+        <div class="mobile-divider"></div>
+
+        <!-- Network status row -->
+        <div class="mobile-status-row">
+          <div id="networkBadgeMobileMenu" class="network-badge network-badge-sm">
+            <span id="networkDotMobileMenu" class="network-dot"></span>
+            <span id="networkTextMobile">Checking…</span>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /mobileMenu -->
+
+    <!-- Mobile Menu Overlay -->
+    <div id="menuOverlay" class="menu-overlay" onclick="MobileMenu.close()"></div>
+
+  </header>
+
+  <!-- ═══════════════════════════════════════════
+       MAIN CONTENT
+  ═══════════════════════════════════════════ -->
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- ══════════════════════════════════════════
+         STATS DASHBOARD
+    ══════════════════════════════════════════ -->
+    <div id="statsRow" class="bg-surface-800 border border-slate-700/50 rounded-2xl overflow-hidden shadow-card">
+
+      <!-- Tab Switcher -->
+      <div class="flex border-b border-slate-700/50">
+        <button id="statsTabBacktest" onclick="Stats.switchTab('backtest')"
+          class="stats-tab-btn active-stats-tab flex-1">
+          <i class="fas fa-flask-vial mr-2"></i>Backtest
+        </button>
+        <button id="statsTabLive" onclick="Stats.switchTab('live')"
+          class="stats-tab-btn flex-1">
+          <i class="fas fa-signal mr-2"></i>Live Trades
+        </button>
+      </div>
+
+      <!-- Panel Content -->
+      <div class="p-5 space-y-5">
+
+        <!-- 4 stat cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+          <div class="stats-mini-card">
+            <div class="stats-mini-icon bg-brand/10 text-brand">
+              <i class="fas fa-layer-group text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-white font-mono" id="statTotal">0</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Trades</p>
+          </div>
+
+          <div class="stats-mini-card">
+            <div class="stats-mini-icon bg-win/10 text-win">
+              <i class="fas fa-arrow-trend-up text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-win font-mono" id="statWins">0</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Wins</p>
+          </div>
+
+          <div class="stats-mini-card">
+            <div class="stats-mini-icon bg-loss/10 text-loss">
+              <i class="fas fa-arrow-trend-down text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-loss font-mono" id="statLosses">0</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Losses</p>
+          </div>
+
+          <div class="stats-mini-card">
+            <div class="stats-mini-icon bg-yellow-500/10 text-yellow-400">
+              <i class="fas fa-percent text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-yellow-400 font-mono" id="statWR">—</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Win Rate</p>
+          </div>
+        </div>
+
+        <!-- RR Breakdown -->
+        <div class="bg-surface-700/50 border border-slate-700/40 rounded-xl p-4 space-y-3">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fas fa-scale-balanced text-brand text-xs"></i>
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">RR Profit &amp; Loss</span>
+            <span class="ml-auto text-[10px] text-slate-600 font-mono">win RR − loss RR = net</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="text-center">
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Win RR</p>
+              <p class="text-xl font-bold text-win font-mono" id="statWinRR">0</p>
+              <p class="text-[10px] text-slate-600 mt-0.5">sum of wins</p>
+            </div>
+            <div class="text-center border-x border-slate-700/40">
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Loss RR</p>
+              <p class="text-xl font-bold text-loss font-mono" id="statLossRR">0</p>
+              <p class="text-[10px] text-slate-600 mt-0.5">sum of losses</p>
+            </div>
+            <div class="text-center">
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Net RR</p>
+              <p class="text-xl font-bold font-mono" id="statNetRR">—</p>
+              <p class="text-[10px] text-slate-600 mt-0.5">win − loss</p>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex h-2 rounded-full overflow-hidden bg-surface-900">
+              <div id="rrWinBar"  class="h-full bg-win  transition-all duration-500" style="width:0%"></div>
+              <div id="rrLossBar" class="h-full bg-loss transition-all duration-500" style="width:0%"></div>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[9px] text-win font-mono">Win RR %</span>
+              <span class="text-[9px] text-loss font-mono">Loss RR %</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Calendar ── -->
+    <section class="bg-surface-800 rounded-2xl border border-slate-700/50 overflow-hidden shadow-card">
+      <div class="px-5 py-4 border-b border-slate-700/50 flex items-center gap-2">
+        <i class="fas fa-calendar-days text-brand text-sm"></i>
+        <h2 class="text-sm font-semibold text-slate-200">Monthly Overview</h2>
+        <span class="text-xs text-slate-500 ml-1 hidden sm:inline">— click any day to log a trade</span>
+      </div>
+
+      <div class="grid grid-cols-7 border-b border-slate-700/30">
+        <div class="calendar-dow">Sun</div>
+        <div class="calendar-dow">Mon</div>
+        <div class="calendar-dow">Tue</div>
+        <div class="calendar-dow">Wed</div>
+        <div class="calendar-dow">Thu</div>
+        <div class="calendar-dow">Fri</div>
+        <div class="calendar-dow">Sat</div>
+      </div>
+
+      <div id="calendarGrid" class="grid grid-cols-7 p-2 gap-1"></div>
+    </section>
+
+    <!-- ── Trade List Section ── -->
+    <section class="bg-surface-800 rounded-2xl border border-slate-700/50 shadow-card">
+      <div class="px-5 py-4 border-b border-slate-700/50">
+
+        <!-- Title row -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-table-list text-brand text-sm"></i>
+            <h2 class="text-sm font-semibold text-slate-200">Trade Log</h2>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <!-- Pair search -->
+          <div class="filter-item filter-pair-wrap">
+            <i class="fas fa-magnifying-glass filter-icon"></i>
+            <input id="filterPair" type="text" placeholder="Filter by pair…"
+              oninput="TradeList.applyFilters()"
+              class="filter-input" />
+          </div>
+
+          <!-- Date From -->
+          <div class="filter-item filter-date-wrap">
+            <span class="filter-date-label">From</span>
+            <input id="filterDateFrom" type="date"
+              onchange="TradeList.applyFilters()"
+              class="filter-input filter-date-input"
+              title="From date" />
+          </div>
+
+          <!-- Date To -->
+          <div class="filter-item filter-date-wrap">
+            <span class="filter-date-label">To</span>
+            <input id="filterDateTo" type="date"
+              onchange="TradeList.applyFilters()"
+              class="filter-input filter-date-input"
+              title="To date" />
+          </div>
+
+          <!-- Clear -->
+          <button onclick="TradeList.clearFilters()" class="filter-clear-btn" title="Clear all filters">
+            <i class="fas fa-xmark mr-1"></i><span class="filter-clear-label">Clear</span>
+          </button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-1 mt-4">
+          <button id="tabBacktest" onclick="TradeList.switchTab('backtest')" class="tab-btn active-tab">
+            <i class="fas fa-flask-vial mr-1.5"></i>Backtest
+            <span id="cntBacktest" class="tab-count">0</span>
+          </button>
+          <button id="tabLive" onclick="TradeList.switchTab('live')" class="tab-btn">
+            <i class="fas fa-signal mr-1.5"></i>Live Trades
+            <span id="cntLive" class="tab-count">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="tradeListContainer" class="p-4 min-h-[200px]">
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center">
+          <div class="w-16 h-16 rounded-2xl bg-surface-700 flex items-center justify-center mb-4 mx-auto">
+            <i class="fas fa-chart-candlestick text-slate-600 text-2xl"></i>
+          </div>
+          <p class="text-slate-400 text-sm font-medium">No trades logged yet</p>
+          <p class="text-slate-600 text-xs mt-1">Click any calendar day to add a trade</p>
+        </div>
+        <div id="tradeCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Pagination -->
+      <div id="pagination" class="px-5 py-3 border-t border-slate-700/50 flex items-center justify-between hidden">
+        <span id="pageInfo" class="text-xs text-slate-400"></span>
+        <div class="flex gap-2">
+          <button id="btnPrev" onclick="TradeList.prevPage()"
+            class="px-3 py-1.5 rounded-lg bg-surface-700 border border-slate-600 text-xs text-slate-300 hover:text-brand hover:border-brand/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            <i class="fas fa-chevron-left mr-1"></i>Prev
+          </button>
+          <button id="btnNext" onclick="TradeList.nextPage()"
+            class="px-3 py-1.5 rounded-lg bg-surface-700 border border-slate-600 text-xs text-slate-300 hover:text-brand hover:border-brand/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            Next<i class="fas fa-chevron-right ml-1"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════
+       TRADE MODAL
+  ═══════════════════════════════════════════ -->
+  <div id="tradeModal" class="modal-backdrop hidden" onclick="Modal.handleBackdropClick(event)">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 id="modalTitle" class="text-base font-semibold text-white">Log Trade</h3>
+          <p id="modalDate" class="text-xs text-slate-400 mt-0.5"></p>
+        </div>
+        <button onclick="Modal.close()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-700 text-slate-400 hover:text-white transition-all">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="tradeForm" onsubmit="Modal.submitForm(event)" class="space-y-4" novalidate>
+
+        <input type="hidden" id="formDate" />
+        <input type="hidden" id="formTradeId" />
+
+        <!-- Trade Type Toggle -->
+        <div class="form-group">
+          <label class="form-label">Trade Type</label>
+          <div class="flex gap-2">
+            <button type="button" id="typeBacktest" onclick="Modal.setTradeType('backtest')" class="type-toggle active-type flex-1">
+              <i class="fas fa-flask-vial mr-1.5"></i>Backtest
+            </button>
+            <button type="button" id="typeLive" onclick="Modal.setTradeType('live')" class="type-toggle flex-1">
+              <i class="fas fa-signal mr-1.5"></i>Live Trade
+            </button>
+          </div>
+          <input type="hidden" id="formType" value="backtest" />
+        </div>
+
+        <!-- Currency Pair -->
+        <div class="form-group">
+          <label for="formPair" class="form-label">Currency Pair</label>
+          <input id="formPair" type="text" placeholder="e.g. XAU/USD, EUR/USD"
+            class="form-input" autocomplete="off" required />
+        </div>
+
+        <!-- Outcome -->
+        <div class="form-group">
+          <label class="form-label">Outcome</label>
+          <div class="flex gap-2">
+            <button type="button" id="outcomeWin" onclick="Modal.setOutcome('win')" class="outcome-toggle win-toggle flex-1">
+              <i class="fas fa-check-circle mr-1.5"></i>Win
+            </button>
+            <button type="button" id="outcomeLoss" onclick="Modal.setOutcome('loss')" class="outcome-toggle loss-toggle flex-1">
+              <i class="fas fa-xmark-circle mr-1.5"></i>Loss
+            </button>
+          </div>
+          <input type="hidden" id="formOutcome" value="win" />
+        </div>
+
+        <!-- RR Ratio -->
+        <div class="form-group">
+          <label for="formRR" class="form-label">Risk-to-Reward (RR)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-mono">1:</span>
+            <input id="formRR" type="number" step="0.1" min="0" placeholder="2.5" class="form-input pl-7" />
+          </div>
+        </div>
+
+        <!-- Screenshot URL -->
+        <div class="form-group">
+          <label for="formScreenshot" class="form-label">Screenshot URL</label>
+          <input id="formScreenshot" type="url" placeholder="https://…" class="form-input" autocomplete="off" />
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+          <label for="formNotes" class="form-label">Notes</label>
+          <textarea id="formNotes" rows="3" placeholder="Setup, confluences, mistakes…" class="form-input resize-none"></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2 pt-2">
+          <button type="submit"
+            class="flex-1 py-2.5 rounded-xl bg-brand text-surface-900 font-semibold text-sm hover:bg-cyan-400 active:scale-95 transition-all shadow-glow">
+            <i class="fas fa-floppy-disk mr-2"></i>Save Trade
+          </button>
+          <button type="button" onclick="Modal.close()"
+            class="px-4 py-2.5 rounded-xl bg-surface-700 border border-slate-600 text-slate-300 text-sm hover:text-white transition-all">
+            Cancel
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       TOAST
+  ═══════════════════════════════════════════ -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden">
+    <div id="toastInner" class="flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium shadow-card backdrop-blur-sm transition-all duration-300">
+      <i id="toastIcon" class="text-base"></i>
+      <span id="toastMsg"></span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       CHECKLIST WIZARD MODAL
+  ═══════════════════════════════════════════ -->
+  <div id="checklistModal" class="modal-backdrop hidden" onclick="if(event.target===this)Checklist.close()">
+    <div class="modal-box cl-modal-box" role="dialog" aria-modal="true">
+
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-brand/10 border border-brand/30 flex items-center justify-center">
+            <i class="fas fa-list-check text-brand text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-white">Trade Checklist</h3>
+            <p id="clStepNum" class="text-[10px] text-slate-500 mt-0.5">Step 1 of 3</p>
+          </div>
+        </div>
+        <button onclick="Checklist.close()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-700 text-slate-400 hover:text-white transition-all">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="cl-progress-wrap mb-5">
+        <div class="flex justify-between items-center mb-1.5">
+          <span id="clProgressDone" class="text-[10px] text-slate-500 font-mono">0/0 checks</span>
+          <span id="clProgressPct"  class="text-[10px] text-brand font-mono font-semibold">0%</span>
+        </div>
+        <div class="cl-progress-track">
+          <div id="clProgressBar" class="cl-progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div id="clStepIndicators" class="cl-step-row mb-5"></div>
+
+      <div class="flex items-center justify-between mb-3">
+        <h4 id="clStepTitle" class="text-sm font-semibold"></h4>
+        <span id="clTfProgress" class="text-[10px] font-mono text-slate-500"></span>
+      </div>
+
+      <div id="clItems" class="cl-items-list mb-5"></div>
+
+      <div class="flex gap-2">
+        <button id="clBtnPrev" onclick="Checklist.prev()" class="cl-nav-btn cl-nav-prev" disabled>
+          <i class="fas fa-arrow-left mr-1.5"></i>Prev
+        </button>
+        <button id="clBtnNext" onclick="Checklist.next()" class="cl-nav-btn cl-nav-next flex-1">
+          Next: MTF <i class="fas fa-arrow-right ml-1.5"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       CHECKLIST ADMIN MODAL
+  ═══════════════════════════════════════════ -->
+  <div id="clAdminModal" class="modal-backdrop hidden" onclick="if(event.target===this)ChecklistAdmin.close()">
+    <div class="modal-box cl-admin-modal-box" role="dialog" aria-modal="true">
+
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-surface-700 border border-slate-600 flex items-center justify-center">
+            <i class="fas fa-gear text-slate-400 text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-white">Manage Checklist</h3>
+            <p class="text-[10px] text-slate-500 mt-0.5">Add, edit or remove items per time frame</p>
+          </div>
+        </div>
+        <button onclick="ChecklistAdmin.close()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-700 text-slate-400 hover:text-white transition-all">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="clAdminTabs" class="cl-admin-tabs mb-4"></div>
+      <div id="clAdminItems" class="cl-admin-items-list mb-4"></div>
+
+      <div class="flex gap-2">
+        <input id="clAdminInput" type="text" placeholder="Add new HTF item…"
+          class="form-input flex-1 text-xs"
+          onkeydown="if(event.key==='Enter')ChecklistAdmin.addItem()" />
+        <button onclick="ChecklistAdmin.addItem()"
+          class="px-4 py-2 rounded-xl bg-brand text-surface-900 font-semibold text-xs hover:bg-cyan-400 active:scale-95 transition-all shadow-glow whitespace-nowrap">
+          <i class="fas fa-plus mr-1"></i>Add
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       DRIVE SYNC OVERLAY
+       Shown during CRUD Drive syncs to prevent
+       premature app close
+  ═══════════════════════════════════════════ -->
+  <div id="driveSyncOverlay" class="hidden drive-sync-overlay">
+    <div class="drive-sync-overlay-inner">
+      <div class="drive-sync-spinner"></div>
+      <p id="driveSyncMsg" class="drive-sync-msg">Syncing to Drive…</p>
+      <p class="drive-sync-sub">Please don't close the app</p>
+    </div>
+  </div>
+
+  <!-- App JS -->
+  <script src="app.js"></script>
+
+  <!-- Theme & Mobile Menu Script -->
+  <script>
+    /* ── Theme Manager ── */
+    const Theme = (() => {
+      const KEY = 'fx-theme';
+
+      function apply(mode) {
+        const isDark = mode === 'dark';
+        document.documentElement.classList.toggle('dark', isDark);
+
+        // Update both desktop and mobile theme icons
+        ['themeIcon', 'themeIconMobile'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.className = isDark ? 'fas fa-moon' : 'fas fa-sun';
+          }
+        });
+
+        // Update meta theme-color
+        const meta = document.getElementById('metaThemeColor');
+        if (meta) meta.content = isDark ? '#0f172a' : '#f8fafc';
+
+        // Store preference
+        localStorage.setItem(KEY, mode);
+      }
+
+      function toggle() {
+        const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        apply(current === 'dark' ? 'light' : 'dark');
+      }
+
+      function init() {
+        const saved = localStorage.getItem(KEY);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        apply(saved || (prefersDark ? 'dark' : 'light'));
+      }
+
+      return { toggle, init, apply };
+    })();
+
+    /* ── Mobile Menu Manager ── */
+    const MobileMenu = (() => {
+      let isOpen = false;
+
+      function toggle() {
+        isOpen ? close() : open();
+      }
+
+      function open() {
+        isOpen = true;
+        const menu = document.getElementById('mobileMenu');
+        const overlay = document.getElementById('menuOverlay');
+        const btn = document.getElementById('menuToggle');
+        if (menu) {
+          menu.classList.add('menu-open');
+          menu.setAttribute('aria-hidden', 'false');
+        }
+        if (overlay) overlay.classList.add('overlay-visible');
+        if (btn) {
+          btn.classList.add('is-open');
+          btn.setAttribute('aria-expanded', 'true');
+        }
+        document.body.style.overflow = 'hidden';
+
+        // Sync mobile month label
+        const desktopLabel = document.getElementById('calendarMonthLabel');
+        const mobileLabel  = document.getElementById('calendarMonthLabelMobile');
+        if (desktopLabel && mobileLabel) mobileLabel.textContent = desktopLabel.textContent;
+
+        // Sync drive label
+        const desktopDrive = document.getElementById('driveLabel');
+        const mobileDrive  = document.getElementById('driveLabelMobile');
+        if (desktopDrive && mobileDrive) mobileDrive.textContent = desktopDrive.textContent;
+      }
+
+      function close() {
+        isOpen = false;
+        const menu = document.getElementById('mobileMenu');
+        const overlay = document.getElementById('menuOverlay');
+        const btn = document.getElementById('menuToggle');
+        if (menu) {
+          menu.classList.remove('menu-open');
+          menu.setAttribute('aria-hidden', 'true');
+        }
+        if (overlay) overlay.classList.remove('overlay-visible');
+        if (btn) {
+          btn.classList.remove('is-open');
+          btn.setAttribute('aria-expanded', 'false');
+        }
+        document.body.style.overflow = '';
+      }
+
+      // Close on ESC
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen) close(); });
+
+      return { toggle, open, close };
+    })();
+
+    /* ── Network badge sync for mobile ── */
+    const _origUpdateNetworkUI = window.Network?.updateUI;
+    // We patch after DOM ready to sync the mobile badge too
+    document.addEventListener('DOMContentLoaded', () => {
+      Theme.init();
+
+      // Mirror network badge changes to mobile badge
+      const observer = new MutationObserver(() => {
+        const badge  = document.getElementById('networkBadge');
+        const dotSrc = document.getElementById('networkDot');
+        const txtSrc = document.getElementById('networkText');
+
+        const dotMobile     = document.getElementById('networkDotMobile');
+        const dotMobileMenu = document.getElementById('networkDotMobileMenu');
+        const txtMobileMenu = document.getElementById('networkTextMobile');
+        const badgeMobile   = document.getElementById('networkBadgeMobileMenu');
+
+        if (badge && dotMobile) {
+          // Copy classes from the original badge dot
+          dotMobile.className = dotSrc ? dotSrc.className : '';
+          if (dotMobileMenu) dotMobileMenu.className = dotSrc ? dotSrc.className : '';
+          if (txtMobileMenu && txtSrc) txtMobileMenu.textContent = txtSrc.textContent;
+          // Copy badge class (badge-online / badge-offline)
+          if (badgeMobile) {
+            badgeMobile.className = badge.className.replace('network-badge', 'network-badge network-badge-sm');
+          }
+        }
+      });
+
+      const badge = document.getElementById('networkBadge');
+      if (badge) observer.observe(badge, { attributes: true, childList: true, subtree: true });
+    });
+  </script>
+
+</body>
+</html>
