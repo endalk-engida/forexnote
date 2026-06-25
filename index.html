@@ -133,6 +133,11 @@
           <i class="fas fa-moon" id="themeIcon"></i>
         </button>
 
+        <!-- Settings -->
+        <button onclick="Settings.open()" class="ctrl-btn ctrl-btn-icon" title="Settings">
+          <i class="fas fa-sliders"></i>
+        </button>
+
       </div>
 
       <!-- ── Right: Mobile Controls (always visible) ── -->
@@ -222,6 +227,18 @@
           <div class="mobile-menu-text">
             <span class="mobile-menu-title">Sync Now</span>
             <span class="mobile-menu-desc">Push pending trades to Drive</span>
+          </div>
+          <i class="fas fa-chevron-right mobile-menu-arrow"></i>
+        </button>
+
+        <!-- Settings -->
+        <button onclick="Settings.open(); MobileMenu.close()" class="mobile-menu-item">
+          <div class="mobile-menu-icon bg-slate-700/60 text-slate-300">
+            <i class="fas fa-sliders"></i>
+          </div>
+          <div class="mobile-menu-text">
+            <span class="mobile-menu-title">Settings</span>
+            <span class="mobile-menu-desc">Install app &amp; manage data</span>
           </div>
           <i class="fas fa-chevron-right mobile-menu-arrow"></i>
         </button>
@@ -682,6 +699,82 @@
       <div class="drive-sync-spinner"></div>
       <p id="driveSyncMsg" class="drive-sync-msg">Syncing to Drive…</p>
       <p class="drive-sync-sub">Please don't close the app</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SETTINGS DRAWER
+  ═══════════════════════════════════════════ -->
+  <div id="settingsOverlay" class="settings-overlay hidden" onclick="Settings.close()"></div>
+
+  <div id="settingsDrawer" class="settings-drawer" aria-label="Settings" role="dialog">
+
+    <!-- Header -->
+    <div class="settings-header">
+      <div class="settings-header-left">
+        <div class="settings-header-icon">
+          <i class="fas fa-sliders"></i>
+        </div>
+        <div>
+          <h3 class="settings-title">Settings</h3>
+          <p class="settings-subtitle">App preferences &amp; data</p>
+        </div>
+      </div>
+      <button onclick="Settings.close()" class="settings-close-btn" aria-label="Close settings">
+        <i class="fas fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="settings-body">
+
+      <!-- ── Section: App Installation ── -->
+      <div class="settings-section-label">App Installation</div>
+
+      <div class="settings-card">
+        <div class="settings-card-icon" style="background:rgba(34,211,238,0.12);color:#22d3ee">
+          <i class="fas fa-download"></i>
+        </div>
+        <div class="settings-card-text">
+          <span class="settings-card-title">Install FX Journal</span>
+          <span class="settings-card-desc" id="pwaInstallDesc">Add to home screen for offline use</span>
+        </div>
+        <button id="settingsInstallBtn" class="settings-action-btn settings-action-primary" onclick="Settings.installPWA()">
+          Install
+        </button>
+      </div>
+
+      <!-- ── Section: Data Management ── -->
+      <div class="settings-section-label" style="margin-top:20px">Data Management</div>
+
+      <div class="settings-card">
+        <div class="settings-card-icon" style="background:rgba(239,68,68,0.1);color:#ef4444">
+          <i class="fas fa-trash-can"></i>
+        </div>
+        <div class="settings-card-text">
+          <span class="settings-card-title">Clear Cache</span>
+          <span class="settings-card-desc">Delete service worker cache &amp; reload</span>
+        </div>
+        <button class="settings-action-btn settings-action-danger" onclick="Settings.confirmClearCache()">
+          Clear
+        </button>
+      </div>
+
+    </div><!-- /settings-body -->
+  </div>
+
+  <!-- ── Clear Cache Confirm Dialog ── -->
+  <div id="clearCacheDialog" class="settings-confirm-backdrop hidden" onclick="if(event.target===this)Settings.cancelClearCache()">
+    <div class="settings-confirm-box" role="alertdialog">
+      <div class="settings-confirm-icon">
+        <i class="fas fa-triangle-exclamation"></i>
+      </div>
+      <h4 class="settings-confirm-title">Clear Cache?</h4>
+      <p class="settings-confirm-msg">This will delete all service worker cached files and reload the page. Your trade data in IndexedDB will <strong>not</strong> be affected.</p>
+      <div class="settings-confirm-actions">
+        <button onclick="Settings.cancelClearCache()" class="settings-confirm-cancel">Cancel</button>
+        <button onclick="Settings.executeClearCache()" class="settings-confirm-ok">Yes, Clear Cache</button>
+      </div>
     </div>
   </div>
 
