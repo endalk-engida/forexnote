@@ -1461,10 +1461,7 @@ const Network = (() => {
    ⑩ SERVICE WORKER REGISTRATION + PWA INSTALL
    ───────────────────────────────────────────── */
 const PWA = (() => {
-  // Holds the deferred beforeinstallprompt event
   let _deferredPrompt = null;
-
-  // localStorage key to suppress banner after user has acted on it
   const LS_INSTALL_DISMISSED = 'fxj_install_dismissed';
 
   /* ── Service Worker registration ── */
@@ -1479,8 +1476,8 @@ const PWA = (() => {
     }
   };
 
-  /* ── Install banner logic ── */
-  const _isStandalone = () =>
+  /* ── Helpers ── */
+  const isStandalone = () =>
     window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true ||
     document.referrer.includes('android-app://');
@@ -1497,54 +1494,61 @@ const PWA = (() => {
     setTimeout(() => banner.classList.add('hidden'), 260);
   };
 
-  const _initInstallPrompt = () => {
-    // Don't show if already installed or permanently dismissed
-    if (_isStandalone()) return;
-    if (localStorage.getItem(LS_INSTALL_DISMISSED)) return;
+  /* ── Public: trigger install from Settings ── */
+  const triggerInstall = async () => {
+    if (!_deferredPrompt) return false;
+    _deferredPrompt.prompt();
+    const { outcome } = await _deferredPrompt.userChoice;
+    console.info('[PWA] Install outcome:', outcome);
+    _deferredPrompt = null;
+    _hideBannerAnimated();
+    localStorage.setItem(LS_INSTALL_DISMISSED, '1');
+    return outcome === 'accepted';
+  };
 
-    // Capture the browser's native prompt before it fires
+  const canInstall = () => !!_deferredPrompt;
+
+  /* ── Init: capture beforeinstallprompt + wire banner buttons ── */
+  const _initInstallPrompt = () => {
+    // Always listen for the event so Settings button can use it
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       _deferredPrompt = e;
-      // Small delay so app content renders first — avoids banner flash on cold load
-      setTimeout(_showBanner, 1800);
+
+      // Update Settings button state
+      Settings.updateInstallBtn();
+
+      // Show bottom banner only if not dismissed and not standalone
+      if (!isStandalone() && !localStorage.getItem(LS_INSTALL_DISMISSED)) {
+        setTimeout(_showBanner, 1800);
+      }
     });
 
-    // If app is installed while the banner is open, hide it
     window.addEventListener('appinstalled', () => {
       _hideBannerAnimated();
       _deferredPrompt = null;
+      Settings.updateInstallBtn();
     });
 
-    // Install button
+    // Banner Install button
     const installBtn = document.getElementById('pwaInstallBtn');
     if (installBtn) {
       installBtn.addEventListener('click', async () => {
-        if (!_deferredPrompt) return;
-        _deferredPrompt.prompt();
-        const { outcome } = await _deferredPrompt.userChoice;
-        console.info('[PWA] Install prompt outcome:', outcome);
-        _deferredPrompt = null;
-        _hideBannerAnimated();
-        // Remember choice either way so we don't pester the user again
-        localStorage.setItem(LS_INSTALL_DISMISSED, '1');
+        await triggerInstall();
       });
     }
 
-    // Dismiss (×) button
+    // Banner Dismiss button
     const dismissBtn = document.getElementById('pwaInstallDismiss');
     if (dismissBtn) {
       dismissBtn.addEventListener('click', () => {
         _hideBannerAnimated();
-        // Remember dismissal for this browser session only (not permanently)
         sessionStorage.setItem(LS_INSTALL_DISMISSED, '1');
       });
     }
   };
 
-  /* ── Public ── */
   const init = () => {
-    // Wire up install prompt after DOM is settled
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', _initInstallPrompt);
     } else {
@@ -1552,7 +1556,136 @@ const PWA = (() => {
     }
   };
 
-  return { register, init };
+  return { register, init, triggerInstall, canInstall, isStandalone };
+})();
+
+
+/* ─────────────────────────────────────────────
+   ⑪ SETTINGS MODULE — Install PWA + Clear Cache
+   ───────────────────────────────────────────── */
+const Settings = (() => {
+
+  /* ── Open / Close drawer ── */
+  const open = () => {
+    updateInstallBtn();
+    document.getElementById('settingsOverlay').classList.remove('hidden');
+    document.getElementById('settingsDrawer').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+
+  const close = () => {
+    document.getElementById('settingsOverlay').classList.add('hidden');
+    document.getElementById('settingsDrawer').classList.remove('open');
+    document.body.style.overflow = '';
+  };
+
+  /* ── Update Install button state based on installability ── */
+  const updateInstallBtn = () => {
+    const btn  = document.getElementById('settingsInstallBtn');
+    const desc = document.getElementById('pwaInstallDesc');
+    if (!btn) return;
+
+    if (PWA.isStandalone()) {
+      btn.textContent = 'Installed ✓';
+      btn.disabled = true;
+      if (desc) desc.textContent = 'App is already installed on this device';
+    } else if (PWA.canInstall()) {
+      btn.textContent = 'Install';
+      btn.disabled = false;
+      if (desc) desc.textContent = 'Add to home screen for offline use';
+    } else {
+      btn.textContent = 'Not Available';
+      btn.disabled = true;
+      if (desc) desc.textContent = 'Use browser menu → "Add to Home Screen"';
+    }
+  };
+
+  /* ── Install PWA ── */
+  const installPWA = async () => {
+    if (!PWA.canInstall()) {
+      Toast.show('Use your browser menu → "Add to Home Screen" to install.', 'info', 5000);
+      return;
+    }
+    const accepted = await PWA.triggerInstall();
+    if (accepted) {
+      Toast.show('FX Journal installed successfully! ✓', 'success');
+      close();
+    }
+  };
+
+  /* ── Clear Cache — show confirm dialog ── */
+  const confirmClearCache = () => {
+    document.getElementById('clearCacheDialog').classList.remove('hidden');
+  };
+
+  const cancelClearCache = () => {
+    document.getElementById('clearCacheDialog').classList.add('hidden');
+  };
+
+  /* ── Execute clear: wipe all SW caches then reload ── */
+  const executeClearCache = async () => {
+    cancelClearCache();
+    close();
+
+    // Cache Storage and Service Worker APIs require a secure context
+    // (https:// or localhost). When the file is served from file:// the
+    // origin is 'null' and both APIs throw a security error.
+    const isSecure = window.isSecureContext ||
+      location.protocol === 'https:' ||
+      location.hostname === 'localhost' ||
+      location.hostname === '127.0.0.1';
+
+    if (!isSecure) {
+      // Still do a best-effort hard reload to flush memory/http cache
+      Toast.show('Cache APIs unavailable on file://  — reloading page to refresh assets.', 'info', 4000);
+      setTimeout(() => window.location.reload(true), 1500);
+      return;
+    }
+
+    Toast.show('Clearing cache…', 'info', 8000);
+
+    try {
+      let swCount    = 0;
+      let cacheCount = 0;
+
+      // 1. Unregister all service workers
+      if ('serviceWorker' in navigator) {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+          swCount = regs.length;
+        } catch (swErr) {
+          console.warn('[Settings] SW unregister skipped:', swErr.message);
+        }
+      }
+
+      // 2. Delete every Cache Storage bucket
+      if ('caches' in window) {
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+          cacheCount = keys.length;
+          console.info('[Settings] Cleared caches:', keys);
+        } catch (cacheErr) {
+          console.warn('[Settings] Cache clear skipped:', cacheErr.message);
+        }
+      }
+
+      Toast.show(
+        `Cleared ${cacheCount} cache bucket(s), ${swCount} service worker(s). Reloading…`,
+        'success', 2500
+      );
+
+      // 3. Hard reload after short delay so toast is readable
+      setTimeout(() => window.location.reload(true), 1400);
+
+    } catch (err) {
+      console.error('[Settings] Clear cache error:', err);
+      Toast.show('Clear cache failed: ' + err.message, 'error');
+    }
+  };
+
+  return { open, close, updateInstallBtn, installPWA, confirmClearCache, cancelClearCache, executeClearCache };
 })();
 
 /* ─────────────────────────────────────────────
