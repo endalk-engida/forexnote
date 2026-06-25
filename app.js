@@ -1691,7 +1691,7 @@ const Checklist = (() => {
     _updateProgress();
   };
 
-  /* ── Update the shared progress bar and done/pct labels ── */
+  /* ── Update progress bar and all done/pct labels ── */
   const _updateProgress = () => {
     const done  = _totalChecks();
     const total = _totalItems();
@@ -1700,26 +1700,28 @@ const Checklist = (() => {
     const bar = document.getElementById('clProgressBar');
     if (bar) bar.style.width = pct + '%';
 
-    const doneEl = document.getElementById('clProgressDone');
-    const pctEl  = document.getElementById('clProgressPct');
-    if (doneEl) doneEl.textContent = `${done}/${total} checks`;
-    if (pctEl)  pctEl.textContent  = `${pct}%`;
+    // Page 0 uses the primary IDs; pages 1+2 have their own suffixed IDs
+    const label = `${done}/${total} checks`;
+    const pctTxt = `${pct}%`;
+    ['', '1', '2'].forEach(sfx => {
+      const dEl = document.getElementById(`clProgressDone${sfx}`);
+      const pEl = document.getElementById(`clProgressPct${sfx}`);
+      if (dEl) dEl.textContent = label;
+      if (pEl) pEl.textContent = pctTxt;
+    });
   };
 
-  /* ── Slide the viewport to the given page index ── */
+  /* ── Switch to the given page: hide others, show this one ── */
   const _goToPage = (index, animate = true) => {
     _step = index;
-    const viewport = document.getElementById('clViewport');
-    if (viewport) {
-      // Disable/enable CSS transition for instant jump vs animated slide
-      viewport.style.transition = animate
-        ? 'transform 0.32s cubic-bezier(0.4, 0, 0.2, 1)'
-        : 'none';
-      viewport.style.transform = `translateX(-${index * 100}%)`;
-    }
-
     const tf    = TIMEFRAMES[index];
     const color = TF_COLORS[tf];
+
+    // Show only the active page
+    TIMEFRAMES.forEach((_, i) => {
+      const page = document.getElementById(`clPage${i}`);
+      if (page) page.style.display = i === index ? 'flex' : 'none';
+    });
 
     // ── Top bar ──
     const stepNum = document.getElementById('clStepNum');
@@ -1732,7 +1734,7 @@ const Checklist = (() => {
       dot.className = 'cl-fs-dot';
       const tfDone = (_items[TIMEFRAMES[i]]||[]).length > 0
         && (_items[TIMEFRAMES[i]]||[]).every(it => _checked[it.id]);
-      if (i < index || tfDone) dot.classList.add('done');
+      if (tfDone) dot.classList.add('done');
       if (i === index) {
         dot.classList.add('active');
         dot.style.background = color;
@@ -1747,10 +1749,7 @@ const Checklist = (() => {
     const stepLbl = document.getElementById('clStepTitle');
 
     if (prevBtn) prevBtn.disabled = index === 0;
-    if (stepLbl) {
-      stepLbl.textContent = tf;
-      stepLbl.style.color = color;
-    }
+    if (stepLbl) { stepLbl.textContent = tf; stepLbl.style.color = color; }
     if (nextBtn) {
       const isLast = index === TIMEFRAMES.length - 1;
       nextBtn.style.background = color;
@@ -1760,10 +1759,9 @@ const Checklist = (() => {
         : `Next: ${TIMEFRAMES[index + 1]} <i class="fas fa-arrow-right ml-1.5"></i>`;
     }
 
-    // Update progress bar + counters
     _updateProgress();
 
-    // Scroll the active page back to top
+    // Scroll active page back to top
     const page = document.getElementById(`clPage${index}`);
     if (page) page.scrollTop = 0;
   };
