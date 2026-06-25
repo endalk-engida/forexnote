@@ -59,6 +59,14 @@ const DB = (() => {
     })
   );
 
+  // v4: adds a deletedTrades tombstone table so deletions propagate across devices
+  db.version(4).stores({
+    trades:           '++id, date, type, pair, screenshotUrl, notes, outcome, rr, syncStatus, updatedAt, driveId',
+    checklistItems:   '++id, timeframe, order',
+    checklistSessions:'++id, tradeId, date',
+    deletedTrades:    '++id, driveId, deletedAt',   // tombstone log
+  });
+
   return {
     /**
      * Add a new trade record
@@ -84,10 +92,19 @@ const DB = (() => {
     },
 
     /**
-     * Delete a trade by id
+     * Delete a trade by id, recording a tombstone so other devices remove it too.
      * @param {number} id - Record id
      */
     deleteTrade: async (id) => {
+      const trade = await db.trades.get(id);
+      if (trade?.driveId) {
+        // Record a tombstone so the Drive backup will exclude this trade and
+        // bulkUpsertTrades on other devices will know to delete it.
+        await db.deletedTrades.add({
+          driveId:   trade.driveId,
+          deletedAt: new Date().toISOString(),
+        }).catch(() => {}); // swallow duplicate-key errors
+      }
       return await db.trades.delete(id);
     },
 
@@ -127,34 +144,67 @@ const DB = (() => {
     },
 
     /**
-     * Upsert an array of trades from a Drive backup using their driveId as a stable key.
-     * Trades whose driveId already exists locally are updated only if the remote
-     * updatedAt is strictly newer; new driveIds are inserted as-is.
+     * Return all tombstone records (driveIds of deleted trades)
+     * @returns {Promise<Array<{driveId:string, deletedAt:string}>>}
+     */
+    getTombstones: async () => {
+      return await db.deletedTrades.toArray();
+    },
+
+    /**
+     * Remove tombstone entries whose driveId is no longer needed
+     * (called after a successful Drive push to keep the table lean)
+     * @param {string[]} driveIds
+     */
+    purgeTombstones: async (driveIds) => {
+      return await db.deletedTrades.where('driveId').anyOf(driveIds).delete();
+    },
+
+    /**
+     * Upsert an array of trades from a Drive backup.
+     *
+     * Drive is treated as the SINGLE SOURCE OF TRUTH on load:
+     *  • Any trade present on Drive but missing locally → inserted.
+     *  • Any trade where the Drive copy has a newer updatedAt → overwrites local.
+     *  • Tombstoned driveIds (deleted on another device) → removed locally.
      *
      * @param {Object[]} remoteTrades - Array of trade objects from Drive JSON
-     * @returns {Promise<{inserted:number, updated:number, skipped:number}>}
+     * @param {string[]} [tombstones=[]] - driveIds that were deleted on another device
+     * @returns {Promise<{inserted:number, updated:number, skipped:number, removed:number}>}
      */
-    bulkUpsertTrades: async (remoteTrades) => {
-      let inserted = 0, updated = 0, skipped = 0;
+    bulkUpsertTrades: async (remoteTrades, tombstones = []) => {
+      let inserted = 0, updated = 0, skipped = 0, removed = 0;
 
+      // ── Step 1: apply deletions first (tombstones from Drive) ──
+      for (const driveId of tombstones) {
+        const local = await db.trades.where('driveId').equals(driveId).first();
+        if (local) {
+          await db.trades.delete(local.id);
+          removed++;
+        }
+      }
+
+      // ── Step 2: upsert surviving remote trades ──
       for (const remote of remoteTrades) {
         if (!remote.driveId) {
-          // Assign a stable driveId if the backup pre-dates this field
           remote.driveId = remote.id ? `legacy-${remote.id}` : `gen-${Date.now()}-${Math.random()}`;
         }
 
-        const existing = await db.trades
-          .where('driveId').equals(remote.driveId).first();
+        // Skip trades that were locally deleted (tombstoned)
+        const localTombstone = await db.deletedTrades.where('driveId').equals(remote.driveId).first();
+        if (localTombstone) { skipped++; continue; }
+
+        const existing = await db.trades.where('driveId').equals(remote.driveId).first();
 
         if (!existing) {
-          // Strip the original local id so Dexie auto-assigns a fresh one
           const { id: _drop, ...rest } = remote;
           await db.trades.add({ ...rest, syncStatus: 'synced' });
           inserted++;
         } else {
+          // Drive is source of truth: overwrite local unless local is strictly newer
           const remoteTime = new Date(remote.updatedAt || 0).getTime();
           const localTime  = new Date(existing.updatedAt || 0).getTime();
-          if (remoteTime > localTime) {
+          if (remoteTime >= localTime) {
             await db.trades.update(existing.id, { ...remote, id: existing.id, syncStatus: 'synced' });
             updated++;
           } else {
@@ -163,7 +213,7 @@ const DB = (() => {
         }
       }
 
-      return { inserted, updated, skipped };
+      return { inserted, updated, skipped, removed };
     },
 
     /**
@@ -496,10 +546,11 @@ const Modal = (() => {
         Stats.update(),
       ]);
 
-      // Auto-sync if online — show overlay so user doesn't close app mid-sync
-      if (navigator.onLine && GoogleDriveSync.isConnected()) {
-        await GoogleDriveSync.syncPendingTrades({ showOverlay: true });
-      }
+      // ── Real-time auto-sync ──
+      // Fire a debounced background push to Drive.
+      // If offline, autoSync() is a no-op — the change is already
+      // stored locally as 'pending' and will be pushed when back online.
+      GoogleDriveSync.autoSync();
 
     } catch (err) {
       console.error('[Modal] Save error:', err);
@@ -690,10 +741,10 @@ const TradeList = (() => {
       Toast.show('Trade deleted.', 'info');
       await Promise.all([Calendar.refresh(), load(), Stats.update()]);
 
-      // Immediately sync the deletion to Drive with overlay protection
-      if (navigator.onLine && GoogleDriveSync.isConnected()) {
-        await GoogleDriveSync.syncPendingTrades({ showOverlay: true, quiet: true });
-      }
+      // ── Real-time auto-sync ──
+      // Debounced background push; tombstone is already recorded in IndexedDB.
+      // If offline, autoSync() is a no-op — push happens on reconnect.
+      GoogleDriveSync.autoSync();
     } catch (err) {
       console.error('[TradeList] Delete error:', err);
       Toast.show('Failed to delete trade.', 'error');
@@ -829,37 +880,55 @@ const Stats = (() => {
 })();
 
 /* ─────────────────────────────────────────────
-   ⑧ GOOGLE DRIVE SYNC MODULE  (v2 — multi-device recovery)
+   ⑧ GOOGLE DRIVE SYNC MODULE  (v3 — auto-sync, tombstones, offline queue)
    ─────────────────────────────────────────────
-   Key design decisions
-   ────────────────────
-   • Single canonical file  "fx-journal-master.json"  in the backup folder.
-     Every successful push PATCHES (updates) that one file so Drive never
-     accumulates hundreds of timestamped snapshots.
-   • driveId field  — a UUID stamped onto every trade the first time it is
-     written to Drive. This is the stable key used for merge / upsert across
-     devices; local IndexedDB auto-increment ids are per-device and must NOT
+   Design
+   ──────
+   • Single canonical file  "fx-journal-master.json"  in the Drive folder.
+     Every push PATCHes that one file — no accumulation of snapshots.
+
+   • driveId  — a UUID stamped on every trade at first push; the stable key
+     used for merge/upsert across devices.  Local auto-increment ids must NOT
      be used for deduplication.
-   • updatedAt field — ISO timestamp bumped on every add/edit. The merge
-     logic keeps whichever copy (local vs remote) has the newer updatedAt.
-   • Restore flow on connect
-       1. fetchExistingBackup()   — pull master file from Drive
-       2. bulkUpsertTrades()      — merge into IndexedDB (newer wins)
-       3. syncPendingTrades()     — push anything that is still pending
+
+   • updatedAt — ISO timestamp bumped on every add/edit.  Merge keeps the
+     copy (local vs remote) with the newer timestamp.  Drive wins on ties.
+
+   • Tombstones — deletions are tracked in IndexedDB deletedTrades table and
+     propagated in the Drive JSON so other devices remove the same trade.
+
+   • Auto-sync on load
+       1. _trySilentAuth()    — silent OAuth2 token on app start
+       2. _fetchAndMerge()    — pull Drive JSON → hard merge into IndexedDB
+                                (Drive is source of truth at startup)
+       3. _pushSnapshot()     — upload full state back to Drive
+
+   • Real-time push on change
+       Modal.submitForm / TradeList.deleteTrade call autoSync() after every
+       local write.  If offline the change stays 'pending' and autoSync()
+       no-ops; the online handler calls it again when connectivity returns.
+
+   • Offline queue
+       navigator.onLine is checked before every push.  Coming back online
+       triggers fetchExistingBackup → syncPendingTrades via Network.init().
    ───────────────────────────────────────────── */
 const GoogleDriveSync = (() => {
   let _accessToken = null;
   let _tokenClient = null;
-  let _folderId    = null;   // cached Drive folder ID (memory only, re-fetched each session)
+  let _folderId    = null;
 
   // Drive file ID of fx-journal-master.json — persisted in localStorage
-  // so PATCH (update-in-place) works across page reloads without an extra
-  // search API call on every sync.
   const LS_MASTER_ID = 'fxj_master_file_id';
   let _masterId = localStorage.getItem(LS_MASTER_ID) || null;
 
-  // Name of the single canonical backup file on Drive
   const MASTER_FILE = 'fx-journal-master.json';
+
+  // Debounce timer for _autoSync to avoid rapid successive uploads
+  let _syncDebounceTimer = null;
+  const SYNC_DEBOUNCE_MS = 1200;
+
+  // Prevent concurrent uploads
+  let _syncInProgress = false;
 
   /* ── Public: is the user authenticated? ── */
   const isConnected = () => !!_accessToken;
@@ -884,8 +953,9 @@ const GoogleDriveSync = (() => {
         _updateDriveButton(true);
         Toast.show('Connected to Google Drive ✓', 'success');
 
-        // ── On every (re-)connect: restore first, then push ──
-        await _restoreFromDrive();
+        // On every (re-)connect: merge Drive → local, then push
+        await _fetchAndMerge({ silent: false });
+        await _pushSnapshot({ quiet: false });
       },
     });
   };
@@ -893,15 +963,11 @@ const GoogleDriveSync = (() => {
   /* ────────────────────────────────────────────
      Silent token refresh — called on app init.
 
-     GSI's implicit grant flow with prompt:'' will
-     silently issue a token when the user has an
-     active Google session and has previously
-     granted consent. If not, the callback fires
-     with an error (or, in rare cases, not at all).
-
-     A 6-second timeout prevents the app from
-     hanging if the GSI callback is never called
-     (can happen in some browsers / network states).
+     GSI implicit grant with prompt:'' silently
+     issues a token when the user has an active
+     Google session and previously granted consent.
+     A 6 s timeout prevents hanging if the callback
+     never fires (some browsers / network states).
      ──────────────────────────────────────────── */
   const _trySilentAuth = () => {
     return new Promise((resolve) => {
@@ -920,13 +986,11 @@ const GoogleDriveSync = (() => {
         const silentClient = google.accounts.oauth2.initTokenClient({
           client_id: CONFIG.CLIENT_ID,
           scope:     CONFIG.SCOPES,
-          // prompt:'' = no UI interaction; errors resolve(false) gracefully
+          // prompt:'' = no UI; errors resolve(false) gracefully
           callback:  async (response) => {
             clearTimeout(timeout);
 
             if (response.error || !response.access_token) {
-              // Common errors: 'user_logged_out', 'interaction_required'
-              // — all mean "user must click Connect Drive manually"
               console.info('[GSI] Silent auth not available:', response.error || 'no token');
               resolve(false);
               return;
@@ -934,9 +998,14 @@ const GoogleDriveSync = (() => {
 
             _accessToken = response.access_token;
             _updateDriveButton(true);
-            console.info('[GSI] Silent auth success — restoring from Drive…');
+            console.info('[GSI] Silent auth OK — pulling Drive snapshot…');
 
-            await _restoreFromDrive({ silent: true });
+            // ── AUTO-SYNC ON LOAD ──
+            // 1. Fetch Drive JSON; hard-merge (Drive = source of truth)
+            await _fetchAndMerge({ silent: true });
+            // 2. Push merged state back (stamps driveIds, marks synced)
+            await _pushSnapshot({ quiet: true });
+
             resolve(true);
           },
         });
@@ -1079,29 +1148,24 @@ const GoogleDriveSync = (() => {
   };
 
   /* ────────────────────────────────────────────
-     RESTORE — fetch master backup from Drive and
-     merge into local IndexedDB.
+     _fetchAndMerge — PULL from Drive and hard-merge
+     into local IndexedDB.
 
-     Algorithm:
-       1. Find the master file in the app folder.
-       2. Download it and parse the trades array.
-       3. Compare the Drive snapshot's lastSynced
-          against the local DB's latest updatedAt.
-       4. If Drive is newer (or local DB is empty),
-          upsert all remote trades into IndexedDB.
-       5. Cache the Drive file ID for future PATCHes.
+     Drive is the authoritative source of truth on
+     startup.  Any trade in the Drive backup that is
+     missing locally (or has a newer/equal updatedAt)
+     is written to IndexedDB.  Tombstones in the
+     backup cause matching local trades to be deleted.
 
      @param {{ silent?: boolean }} opts
-       silent = true → no toast banners on init
      ──────────────────────────────────────────── */
-  const fetchExistingBackup = async ({ silent = false } = {}) => {
+  const _fetchAndMerge = async ({ silent = false } = {}) => {
     if (!_accessToken) return null;
 
     try {
       const folderId = await _getOrCreateFolder();
 
-      // Search for the master file inside our folder.
-      // If we already cached the file ID, skip the search entirely.
+      // Resolve the master file ID (cached or searched)
       let masterFileId = _masterId;
 
       if (!masterFileId) {
@@ -1121,109 +1185,179 @@ const GoogleDriveSync = (() => {
         masterFileId = data.files[0].id;
         _masterId    = masterFileId;
         localStorage.setItem(LS_MASTER_ID, _masterId);
-        console.info(`[DriveSync] Found master backup file ID: ${masterFileId}`);
+        console.info(`[DriveSync] Found master file: ${masterFileId}`);
       } else {
-        console.info(`[DriveSync] Using cached master file ID: ${masterFileId}`);
+        // Verify the cached file still exists
+        const checkRes  = await _driveGet(
+          `https://www.googleapis.com/drive/v3/files/${masterFileId}?fields=id,trashed`
+        );
+        const checkData = await checkRes.json();
+        if (checkData.error || checkData.trashed) {
+          console.warn('[DriveSync] Cached master file gone — clearing cache.');
+          _masterId = null;
+          localStorage.removeItem(LS_MASTER_ID);
+          if (!silent) Toast.show('No existing backup found on Drive.', 'info');
+          return null;
+        }
       }
 
-      // Verify the file still exists (it may have been deleted on Drive)
-      const checkRes = await _driveGet(
-        `https://www.googleapis.com/drive/v3/files/${masterFileId}?fields=id,name,modifiedTime,trashed`
-      );
-      const checkData = await checkRes.json();
-      if (checkData.error || checkData.trashed) {
-        // File gone — clear the cached ID and report no backup
-        console.warn('[DriveSync] Cached master file is missing or trashed — clearing cache.');
-        _masterId = null;
-        localStorage.removeItem(LS_MASTER_ID);
-        if (!silent) Toast.show('No existing backup found on Drive.', 'info');
-        return null;
-      }
-
-      const file = checkData;
-      console.info(`[DriveSync] Master backup: ${file.name} (modified ${file.modifiedTime})`);
-
-      // Download file content
+      // Download the JSON payload
       const dlRes = await _driveGet(
-        `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`
+        `https://www.googleapis.com/drive/v3/files/${masterFileId}?alt=media`
       );
       if (!dlRes.ok) throw new Error(`Download failed (${dlRes.status})`);
 
       const backup = await dlRes.json();
-      if (!Array.isArray(backup.trades) || backup.trades.length === 0) {
+
+      const remoteTrades = Array.isArray(backup.trades)    ? backup.trades    : [];
+      const tombstones   = Array.isArray(backup.tombstones) ? backup.tombstones : [];
+
+      if (remoteTrades.length === 0 && tombstones.length === 0) {
         if (!silent) Toast.show('Drive backup is empty — nothing to restore.', 'info');
         return backup;
       }
 
-      // ── Timestamp comparison ──
-      // Always run a full per-trade upsert regardless of the snapshot-level
-      // timestamp, because individual trades may be newer on Drive even when
-      // the Drive snapshot timestamp looks older (e.g. two devices syncing
-      // out of order). The per-trade updatedAt comparison inside
-      // bulkUpsertTrades is the real guard — we never skip on snapshot time alone.
-      const localLatest = await DB.getLatestUpdatedAt();
-      const driveLatest = backup.lastSynced || backup.exportedAt || null;
+      // Hard-merge: Drive is source of truth
+      const { inserted, updated, skipped, removed } =
+        await DB.bulkUpsertTrades(remoteTrades, tombstones);
 
-      console.info('[DriveSync] Local latest updatedAt:', localLatest);
-      console.info('[DriveSync] Drive lastSynced:',       driveLatest);
-      // Only skip the full upsert if local is definitively newer AND the local
-      // DB already has trades (not an empty new browser session).
-      const localCount  = await DB.raw.trades.count();
-      const driveIsOlder = localCount > 0
-        && localLatest !== null
-        && driveLatest !== null
-        && localLatest >= driveLatest;
+      console.info(
+        `[DriveSync] Merge — inserted:${inserted} updated:${updated} skipped:${skipped} removed:${removed}`
+      );
 
-      if (driveIsOlder) {
-        console.info('[DriveSync] Local is current — skipping upsert.');
-        if (!silent) Toast.show('Local data is up to date — no restore needed.', 'info');
-        return backup;
+      if (inserted + updated + removed > 0) {
+        const msg = [
+          inserted ? `+${inserted} new`   : '',
+          updated  ? `${updated} updated` : '',
+          removed  ? `${removed} deleted` : '',
+        ].filter(Boolean).join(', ');
+
+        Toast.show(`Drive sync: ${msg}`, 'info', 4000);
+        await Promise.all([Calendar.refresh(), TradeList.load(), Stats.update()]);
       }
-
-      // ── Upsert remote trades into local IndexedDB ──
-      const { inserted, updated, skipped } = await DB.bulkUpsertTrades(backup.trades);
-
-      console.info(`[DriveSync] Restore complete — inserted:${inserted} updated:${updated} skipped:${skipped}`);
-
-      if (!silent) {
-        Toast.show(
-          `Drive restore: +${inserted} new, ${updated} updated, ${skipped} already current.`,
-          'success',
-          5000
-        );
-      } else if (inserted + updated > 0) {
-        // On silent auto-restore, give a quiet nudge only if data actually changed
-        Toast.show(`Restored ${inserted + updated} trade(s) from your Drive backup.`, 'info', 4000);
-      }
-
-      // Refresh the UI to show the newly restored data
-      await Promise.all([Calendar.refresh(), TradeList.load(), Stats.update()]);
 
       return backup;
 
     } catch (err) {
-      console.error('[DriveSync] Restore error:', err);
+      console.error('[DriveSync] Fetch-merge error:', err);
       if (!silent) Toast.show(`Restore failed: ${err.message}`, 'error');
       return null;
     }
   };
 
   /* ────────────────────────────────────────────
-     RESTORE + PUSH — called immediately after
-     any successful authentication (connect or
-     silent token refresh).
+     _pushSnapshot — PUSH all local trades to Drive.
+
+     • Stamps a stable driveId on any trade missing one.
+     • Includes the local tombstone list so other
+       devices apply the same deletions.
+     • Marks all pending trades as 'synced'.
+     • Guards against concurrent calls and offline state.
+
+     @param {{ quiet?: boolean, showOverlay?: boolean }} opts
      ──────────────────────────────────────────── */
-  const _restoreFromDrive = async ({ silent = false } = {}) => {
-    // Step 1: Pull Drive → merge local
-    await fetchExistingBackup({ silent });
-    // Step 2: Push anything still pending after merge
-    await syncPendingTrades({ quiet: silent });
+  const _pushSnapshot = async ({ quiet = false, showOverlay = false } = {}) => {
+    if (!_accessToken) {
+      if (!quiet) Toast.show('Connect Google Drive first.', 'warn');
+      return;
+    }
+    if (!navigator.onLine) {
+      console.info('[DriveSync] Offline — push deferred.');
+      return;
+    }
+    if (_syncInProgress) {
+      console.info('[DriveSync] Sync already in progress — skipping.');
+      return;
+    }
+
+    _syncInProgress = true;
+    const syncIcon = document.getElementById('syncIcon');
+    syncIcon?.classList.add('spin');
+    if (showOverlay) _showSyncOverlay('Syncing to Drive…');
+
+    try {
+      // Stamp driveId on any new trades
+      const allTrades = await DB.getTrades();
+      const tombstones = await DB.getTombstones();
+
+      if (allTrades.length === 0 && tombstones.length === 0) {
+        if (!quiet) Toast.show('No trades to sync yet.', 'info');
+        return;
+      }
+
+      const needsDriveId = allTrades.filter(t => !t.driveId);
+      for (const t of needsDriveId) {
+        const driveId = `trade-${t.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        await DB.updateTrade(t.id, { driveId });
+        t.driveId = driveId;
+      }
+
+      const trades    = await DB.getTrades();
+      const pending   = trades.filter(t => t.syncStatus === 'pending');
+      const folderId  = await _getOrCreateFolder();
+      const now       = new Date().toISOString();
+
+      const payload = {
+        appVersion:  '3.0',
+        lastSynced:  now,
+        tradeCount:  trades.length,
+        trades,
+        // Tombstone list: driveIds deleted on this device
+        tombstones:  tombstones.map(t => t.driveId),
+      };
+
+      await _upsertMasterFile(payload, folderId);
+
+      // Mark pending trades as synced
+      if (pending.length > 0) {
+        await DB.markSynced(pending.map(t => t.id));
+        await TradeList.load();
+      }
+
+      // Prune tombstones that have been successfully uploaded
+      if (tombstones.length > 0) {
+        await DB.purgeTombstones(tombstones.map(t => t.driveId));
+      }
+
+      if (!quiet) {
+        Toast.show(
+          pending.length > 0
+            ? `${pending.length} trade(s) synced to Drive ✓`
+            : 'Drive backup updated ✓',
+          'success'
+        );
+      }
+
+    } catch (err) {
+      console.error('[DriveSync] Push error:', err);
+      if (!quiet) Toast.show(`Sync failed: ${err.message}`, 'error');
+    } finally {
+      _syncInProgress = false;
+      syncIcon?.classList.remove('spin');
+      _hideSyncOverlay();
+    }
   };
 
   /* ────────────────────────────────────────────
-     Drive Sync Overlay — shows a full-screen
-     "Syncing…" blocker so users don't close the
-     app mid-upload on CRUD operations.
+     _autoSync — debounced real-time push.
+     Called after every trade add / edit / delete.
+
+     • Offline → skips silently; Network 'online'
+       event will push when connectivity returns.
+     • Online  → waits SYNC_DEBOUNCE_MS then pushes.
+     ──────────────────────────────────────────── */
+  const _autoSync = () => {
+    if (!_accessToken) return;
+    if (!navigator.onLine) return;
+
+    clearTimeout(_syncDebounceTimer);
+    _syncDebounceTimer = setTimeout(async () => {
+      await _pushSnapshot({ quiet: true });
+    }, SYNC_DEBOUNCE_MS);
+  };
+
+  /* ────────────────────────────────────────────
+     Drive Sync Overlay
      ──────────────────────────────────────────── */
   const _showSyncOverlay = (msg = 'Syncing to Drive…') => {
     let el = document.getElementById('driveSyncOverlay');
@@ -1249,80 +1383,15 @@ const GoogleDriveSync = (() => {
   };
 
   /* ────────────────────────────────────────────
-     PUSH — upload all trades as the new master.
-
-     Every trade gets a stable driveId the first
-     time it is included in a push; subsequent
-     pushes reuse the same driveId so the merge
-     logic can reconcile across devices.
-
-     @param {{ quiet?: boolean, showOverlay?: boolean }} opts
+     Public aliases — kept for backward compat
+     with any UI buttons calling these directly.
      ──────────────────────────────────────────── */
-  const syncPendingTrades = async ({ quiet = false, showOverlay = false } = {}) => {
-    if (!_accessToken) {
-      if (!quiet) Toast.show('Connect Google Drive first.', 'warn');
-      return;
-    }
-
-    const syncIcon = document.getElementById('syncIcon');
-    syncIcon?.classList.add('spin');
-    if (showOverlay) _showSyncOverlay('Syncing to Drive…');
-
-    try {
-      // Stamp driveId onto any trades that don't have one yet
-      const allTrades = await DB.getTrades();
-
-      // Nothing to back up — don't overwrite a richer Drive file with an empty payload
-      if (allTrades.length === 0) {
-        if (!quiet) Toast.show('No trades to sync yet.', 'info');
-        return;
-      }
-      const needsDriveId = allTrades.filter(t => !t.driveId);
-      for (const t of needsDriveId) {
-        const driveId = `trade-${t.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        await DB.updateTrade(t.id, { driveId });
-        t.driveId = driveId;   // keep local copy in sync with what we're about to upload
-      }
-
-      // Re-fetch with driveIds populated
-      const trades   = await DB.getTrades();
-      const pending  = trades.filter(t => t.syncStatus === 'pending');
-
-      const folderId = await _getOrCreateFolder();
-      const now      = new Date().toISOString();
-
-      const payload = {
-        appVersion:  '2.0',
-        lastSynced:  now,          // ← used by fetchExistingBackup for comparison
-        tradeCount:  trades.length,
-        trades,                    // full snapshot — every trade, not just pending
-      };
-
-      await _upsertMasterFile(payload, folderId);
-
-      // Mark pending trades as synced
-      if (pending.length > 0) {
-        await DB.markSynced(pending.map(t => t.id));
-        await TradeList.load();
-      }
-
-      if (!quiet) {
-        Toast.show(
-          pending.length > 0
-            ? `${pending.length} trade(s) synced to Drive ✓`
-            : 'Drive backup updated ✓',
-          'success'
-        );
-      }
-
-    } catch (err) {
-      console.error('[DriveSync] Sync error:', err);
-      if (!quiet) Toast.show(`Sync failed: ${err.message}`, 'error');
-    } finally {
-      syncIcon?.classList.remove('spin');
-      _hideSyncOverlay();
-    }
+  const syncPendingTrades = async (opts = {}) => {
+    await _fetchAndMerge({ silent: opts.quiet ?? true });
+    await _pushSnapshot(opts);
   };
+
+  const fetchExistingBackup = async (opts = {}) => _fetchAndMerge(opts);
 
   /* ────────────────────────────────────────────
      Public API
@@ -1332,6 +1401,7 @@ const GoogleDriveSync = (() => {
     syncPendingTrades,
     fetchExistingBackup,
     isConnected,
+    autoSync: _autoSync,          // ← called by Modal & TradeList after every change
     _initGSI,
     _trySilentAuth,
     showSyncOverlay: _showSyncOverlay,
@@ -1370,8 +1440,8 @@ const Network = (() => {
       Toast.show('Back online! Checking Drive for updates…', 'info');
 
       if (GoogleDriveSync.isConnected()) {
-        // Restore first (in case another device wrote while we were offline),
-        // then push any locally-pending trades.
+        // Pull latest from Drive (in case another device wrote while offline),
+        // then push any locally-pending changes (including tombstones).
         await GoogleDriveSync.fetchExistingBackup({ silent: true });
         await GoogleDriveSync.syncPendingTrades({ quiet: true });
         Toast.show('Drive sync complete ✓', 'success');
@@ -1652,7 +1722,7 @@ const App = (() => {
       // Seed default checklist items (only on first run)
       await DB.seedChecklistDefaults();
 
-      // Network status
+      // Network status badge + online/offline listeners
       Network.init();
 
       // Calendar
@@ -1664,22 +1734,23 @@ const App = (() => {
       // Stats
       await Stats.update();
 
-      // Google Identity Services — initialise on window load, then
-      // attempt a silent token refresh so returning users get their
-      // Drive data without having to click "Connect Drive" again.
+      // Register PWA service worker
+      await PWA.register();
+
+      // ── Google Drive: init GSI and attempt silent auth ──
+      // Run inside window.load so the GSI library script is fully parsed.
+      // On success the callback calls _fetchAndMerge (Drive → local) then
+      // _pushSnapshot (local → Drive), giving users their full history
+      // automatically without any manual "Connect Drive" click.
       window.addEventListener('load', async () => {
         GoogleDriveSync._initGSI();
 
-        // Try to silently re-authenticate with a cached Google session.
-        // This will call fetchExistingBackup() + syncPendingTrades() on
-        // success, giving the user their full trade history automatically.
         if (navigator.onLine) {
+          // _trySilentAuth internally calls _fetchAndMerge + _pushSnapshot
+          // on success — this is the "Auto-Sync on Initialization" entry point.
           await GoogleDriveSync._trySilentAuth();
         }
       });
-
-      // Register PWA service worker
-      await PWA.register();
 
       console.log('[FX Journal] Ready ✓');
 
