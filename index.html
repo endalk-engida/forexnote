@@ -584,8 +584,7 @@
       <div id="clProgressBar" class="cl-fs-prog-bar-fill" style="width:0%"></div>
     </div>
 
-    <!-- ── Page viewport — only one page visible at a time ── -->
-    <div class="cl-fs-viewport" id="clViewport">
+    <!-- ── Pages — only the active one is shown ── -->
 
       <!-- Page 0 → HTF -->
       <div class="cl-fs-page" id="clPage0">
@@ -600,24 +599,28 @@
       </div>
 
       <!-- Page 1 → MTF -->
-      <div class="cl-fs-page" id="clPage1">
+      <div class="cl-fs-page" id="clPage1" style="display:none">
         <div class="cl-fs-page-inner">
           <div class="cl-page-header" id="clPageHeader1"></div>
-          <div class="cl-page-meta" id="clMeta1" style="display:none"></div>
+          <div class="cl-page-meta">
+            <span class="cl-page-done-label" id="clProgressDone1"></span>
+            <span class="cl-page-pct-label"  id="clProgressPct1"></span>
+          </div>
           <div class="cl-page-items" id="clItems1"></div>
         </div>
       </div>
 
       <!-- Page 2 → LTF -->
-      <div class="cl-fs-page" id="clPage2">
+      <div class="cl-fs-page" id="clPage2" style="display:none">
         <div class="cl-fs-page-inner">
           <div class="cl-page-header" id="clPageHeader2"></div>
-          <div class="cl-page-meta" id="clMeta2" style="display:none"></div>
+          <div class="cl-page-meta">
+            <span class="cl-page-done-label" id="clProgressDone2"></span>
+            <span class="cl-page-pct-label"  id="clProgressPct2"></span>
+          </div>
           <div class="cl-page-items" id="clItems2"></div>
         </div>
       </div>
-
-    </div><!-- /cl-fs-viewport -->
 
     <!-- ── Bottom nav bar (always visible) ── -->
     <div class="cl-fs-bottom-bar">
