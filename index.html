@@ -558,46 +558,54 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       CHECKLIST WIZARD MODAL
+       CHECKLIST WIZARD — FULL SCREEN
   ═══════════════════════════════════════════ -->
-  <div id="checklistModal" class="modal-backdrop hidden" onclick="if(event.target===this)Checklist.close()">
-    <div class="modal-box cl-modal-box" role="dialog" aria-modal="true">
+  <div id="checklistModal" class="cl-fullscreen hidden" role="dialog" aria-modal="true" aria-label="Trade Checklist">
 
-      <div class="flex items-center justify-between mb-5">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-brand/10 border border-brand/30 flex items-center justify-center">
-            <i class="fas fa-list-check text-brand text-sm"></i>
-          </div>
-          <div>
-            <h3 class="text-sm font-semibold text-white">Trade Checklist</h3>
-            <p id="clStepNum" class="text-[10px] text-slate-500 mt-0.5">Step 1 of 3</p>
-          </div>
+    <!-- Top bar -->
+    <div class="cl-fs-topbar">
+      <div class="cl-fs-topbar-left">
+        <div class="cl-fs-icon">
+          <i class="fas fa-list-check"></i>
         </div>
-        <button onclick="Checklist.close()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-700 text-slate-400 hover:text-white transition-all">
-          <i class="fas fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="cl-progress-wrap mb-5">
-        <div class="flex justify-between items-center mb-1.5">
-          <span id="clProgressDone" class="text-[10px] text-slate-500 font-mono">0/0 checks</span>
-          <span id="clProgressPct"  class="text-[10px] text-brand font-mono font-semibold">0%</span>
-        </div>
-        <div class="cl-progress-track">
-          <div id="clProgressBar" class="cl-progress-fill" style="width:0%"></div>
+        <div>
+          <h3 class="cl-fs-title">Trade Checklist</h3>
+          <p id="clStepNum" class="cl-fs-subtitle">Step 1 of 3</p>
         </div>
       </div>
+      <button onclick="Checklist.close()" class="cl-fs-close-btn" aria-label="Close checklist">
+        <i class="fas fa-arrow-left mr-2"></i>Back
+      </button>
+    </div>
 
-      <div id="clStepIndicators" class="cl-step-row mb-5"></div>
+    <!-- Progress bar (full-width strip below topbar) -->
+    <div class="cl-fs-progress-strip">
+      <div class="cl-fs-progress-labels">
+        <span id="clProgressDone" class="cl-fs-prog-done">0/0 checks</span>
+        <span id="clProgressPct"  class="cl-fs-prog-pct">0%</span>
+      </div>
+      <div class="cl-progress-track">
+        <div id="clProgressBar" class="cl-progress-fill" style="width:0%"></div>
+      </div>
+    </div>
 
-      <div class="flex items-center justify-between mb-3">
-        <h4 id="clStepTitle" class="text-sm font-semibold"></h4>
-        <span id="clTfProgress" class="text-[10px] font-mono text-slate-500"></span>
+    <!-- Body -->
+    <div class="cl-fs-body">
+
+      <!-- Step indicators -->
+      <div id="clStepIndicators" class="cl-step-row cl-fs-steps mb-6"></div>
+
+      <!-- Step header -->
+      <div class="cl-fs-step-header">
+        <h4 id="clStepTitle" class="cl-fs-step-title"></h4>
+        <span id="clTfProgress" class="cl-fs-tf-prog"></span>
       </div>
 
-      <div id="clItems" class="cl-items-list mb-5"></div>
+      <!-- Checklist items -->
+      <div id="clItems" class="cl-items-list cl-fs-items"></div>
 
-      <div class="flex gap-2">
+      <!-- Navigation -->
+      <div class="cl-fs-nav">
         <button id="clBtnPrev" onclick="Checklist.prev()" class="cl-nav-btn cl-nav-prev" disabled>
           <i class="fas fa-arrow-left mr-1.5"></i>Prev
         </button>
@@ -606,7 +614,7 @@
         </button>
       </div>
 
-    </div>
+    </div><!-- /cl-fs-body -->
   </div>
 
   <!-- ═══════════════════════════════════════════
@@ -656,6 +664,35 @@
       <div class="drive-sync-spinner"></div>
       <p id="driveSyncMsg" class="drive-sync-msg">Syncing to Drive…</p>
       <p class="drive-sync-sub">Please don't close the app</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       PWA INSTALL BANNER
+       Shown to first-time users when the app is
+       installable and not already in standalone mode.
+  ═══════════════════════════════════════════ -->
+  <div id="pwaInstallBanner" class="pwa-banner hidden" role="alertdialog" aria-label="Install FX Journal">
+    <div class="pwa-banner-icon">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+        <rect width="40" height="40" rx="10" fill="#0f172a"/>
+        <path d="M8 30 L16 19 L23 24 L31 11" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="16" cy="19" r="2" fill="#22d3ee"/>
+        <circle cx="23" cy="24" r="2" fill="#ef4444"/>
+        <circle cx="31" cy="11" r="2" fill="#22c55e"/>
+      </svg>
+    </div>
+    <div class="pwa-banner-text">
+      <p class="pwa-banner-title">FX Journal</p>
+      <p class="pwa-banner-desc">የ FX Journal አፕሊኬሽንን በስልክዎ ወይም<br class="pwa-br"> በኮምፒውተርዎ ላይ ይጫኑ (Install)።</p>
+    </div>
+    <div class="pwa-banner-actions">
+      <button id="pwaInstallBtn" class="pwa-install-btn">
+        <i class="fas fa-download mr-1.5"></i>Install
+      </button>
+      <button id="pwaInstallDismiss" class="pwa-dismiss-btn" aria-label="Dismiss install prompt">
+        <i class="fas fa-xmark"></i>
+      </button>
     </div>
   </div>
 
