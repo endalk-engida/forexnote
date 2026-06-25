@@ -4,7 +4,7 @@
  * Network requests for Google APIs always go live.
  */
 
-const CACHE_NAME    = 'fx-journal-v1';
+const CACHE_NAME    = 'fx-journal-v2';
 const CACHE_TIMEOUT = 3000; // ms before falling back to cache
 
 // App shell assets to pre-cache on install
@@ -13,6 +13,8 @@ const PRECACHE_ASSETS = [
   './index.html',
   './styles.css',
   './app.js',
+  './icon-192.png',
+  './icon-512.png',
   // CDN assets are cached on first fetch (runtime caching)
 ];
 
@@ -48,31 +50,49 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Never intercept Google API calls — always go live
-  if (
-    url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('accounts.google.com') ||
-    url.hostname.includes('unpkg.com') ||
-    url.hostname.includes('cdnjs.cloudflare.com') ||
-    url.hostname.includes('cdn.tailwindcss.com') ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com')
-  ) {
-    // For CDN resources: cache them for offline use (runtime cache)
-    if (url.hostname !== 'googleapis.com' && url.hostname !== 'accounts.google.com') {
+  // Never intercept — always let these go straight to network:
+  //   • Google APIs / auth
+  //   • CORS proxy services (allorigins, corsproxy, etc.)
+  //   • Gemini / generativelanguage
+  //   • CDN resources (unpkg, cdnjs, tailwind, fonts)
+  const PASSTHROUGH_HOSTS = [
+    'googleapis.com',
+    'accounts.google.com',
+    'generativelanguage.googleapis.com',
+    'allorigins.win',
+    'api.allorigins.win',
+    'corsproxy.io',
+    'thingproxy.freeboard.io',
+    'unpkg.com',
+    'cdnjs.cloudflare.com',
+    'cdn.tailwindcss.com',
+    'fonts.googleapis.com',
+    'fonts.gstatic.com',
+  ];
+
+  if (PASSTHROUGH_HOSTS.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) {
+    // CDN assets only: cache on first fetch so they work offline
+    const isCDN = ['unpkg.com','cdnjs.cloudflare.com','cdn.tailwindcss.com',
+                    'fonts.googleapis.com','fonts.gstatic.com'].some(
+                      h => url.hostname === h || url.hostname.endsWith('.' + h));
+    if (isCDN) {
       event.respondWith(
-        caches.open(CACHE_NAME).then((cache) =>
-          cache.match(event.request).then((cached) => {
-            const fetchPromise = fetch(event.request).then((res) => {
-              if (res.ok) cache.put(event.request, res.clone());
+        caches.open(CACHE_NAME).then(cache =>
+          cache.match(event.request).then(cached => {
+            const fetchPromise = fetch(event.request).then(res => {
+              if (res.ok) {
+                const toCache = res.clone(); // clone BEFORE consuming
+                cache.put(event.request, toCache);
+              }
               return res;
-            }).catch(() => cached); // fallback to cache if offline
+            }).catch(() => cached);
             return cached || fetchPromise;
           })
         )
       );
     }
-    return; // Let Google API calls pass through
+    // All other passthrough (Google APIs, proxy services): do nothing — let browser handle
+    return;
   }
 
   // App shell: Cache-first, then network
@@ -81,9 +101,10 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
 
       return fetch(event.request).then((res) => {
-        // Cache successful GET responses
+        // Cache successful GET responses — clone BEFORE returning
         if (event.request.method === 'GET' && res.ok) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
+          const toCache = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, toCache));
         }
         return res;
       }).catch(() => {
