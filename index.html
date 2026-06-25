@@ -558,63 +558,78 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       CHECKLIST WIZARD — FULL SCREEN
+       CHECKLIST WIZARD — FULL SCREEN (3-page flow)
   ═══════════════════════════════════════════ -->
   <div id="checklistModal" class="cl-fullscreen hidden" role="dialog" aria-modal="true" aria-label="Trade Checklist">
 
-    <!-- Top bar -->
+    <!-- ── Top bar (always visible) ── -->
     <div class="cl-fs-topbar">
-      <div class="cl-fs-topbar-left">
-        <div class="cl-fs-icon">
-          <i class="fas fa-list-check"></i>
-        </div>
-        <div>
-          <h3 class="cl-fs-title">Trade Checklist</h3>
-          <p id="clStepNum" class="cl-fs-subtitle">Step 1 of 3</p>
+      <button onclick="Checklist.close()" class="cl-fs-back-btn" aria-label="Close checklist">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <div class="cl-fs-topbar-center">
+        <span class="cl-fs-title">Trade Checklist</span>
+        <span id="clStepNum" class="cl-fs-page-tag">1 / 3</span>
+      </div>
+      <!-- Step dot indicators -->
+      <div class="cl-fs-dot-row">
+        <span class="cl-fs-dot" id="clDot0"></span>
+        <span class="cl-fs-dot" id="clDot1"></span>
+        <span class="cl-fs-dot" id="clDot2"></span>
+      </div>
+    </div>
+
+    <!-- ── Thin progress bar (sticks under topbar) ── -->
+    <div class="cl-fs-prog-bar-wrap">
+      <div id="clProgressBar" class="cl-fs-prog-bar-fill" style="width:0%"></div>
+    </div>
+
+    <!-- ── Page viewport — only one page visible at a time ── -->
+    <div class="cl-fs-viewport" id="clViewport">
+
+      <!-- Page 0 → HTF -->
+      <div class="cl-fs-page" id="clPage0">
+        <div class="cl-fs-page-inner">
+          <div class="cl-page-header" id="clPageHeader0"></div>
+          <div class="cl-page-meta">
+            <span id="clProgressDone" class="cl-page-done-label"></span>
+            <span id="clProgressPct"  class="cl-page-pct-label"></span>
+          </div>
+          <div class="cl-page-items" id="clItems0"></div>
         </div>
       </div>
-      <button onclick="Checklist.close()" class="cl-fs-close-btn" aria-label="Close checklist">
-        <i class="fas fa-arrow-left mr-2"></i>Back
+
+      <!-- Page 1 → MTF -->
+      <div class="cl-fs-page" id="clPage1">
+        <div class="cl-fs-page-inner">
+          <div class="cl-page-header" id="clPageHeader1"></div>
+          <div class="cl-page-meta" id="clMeta1" style="display:none"></div>
+          <div class="cl-page-items" id="clItems1"></div>
+        </div>
+      </div>
+
+      <!-- Page 2 → LTF -->
+      <div class="cl-fs-page" id="clPage2">
+        <div class="cl-fs-page-inner">
+          <div class="cl-page-header" id="clPageHeader2"></div>
+          <div class="cl-page-meta" id="clMeta2" style="display:none"></div>
+          <div class="cl-page-items" id="clItems2"></div>
+        </div>
+      </div>
+
+    </div><!-- /cl-fs-viewport -->
+
+    <!-- ── Bottom nav bar (always visible) ── -->
+    <div class="cl-fs-bottom-bar">
+      <button id="clBtnPrev" onclick="Checklist.prev()" class="cl-fs-btn-prev" disabled>
+        <i class="fas fa-arrow-left mr-1.5"></i>Prev
+      </button>
+      <div class="cl-fs-step-label" id="clStepTitle"></div>
+      <button id="clBtnNext" onclick="Checklist.next()" class="cl-fs-btn-next">
+        Next <i class="fas fa-arrow-right ml-1.5"></i>
       </button>
     </div>
 
-    <!-- Progress bar (full-width strip below topbar) -->
-    <div class="cl-fs-progress-strip">
-      <div class="cl-fs-progress-labels">
-        <span id="clProgressDone" class="cl-fs-prog-done">0/0 checks</span>
-        <span id="clProgressPct"  class="cl-fs-prog-pct">0%</span>
-      </div>
-      <div class="cl-progress-track">
-        <div id="clProgressBar" class="cl-progress-fill" style="width:0%"></div>
-      </div>
-    </div>
-
-    <!-- Body -->
-    <div class="cl-fs-body">
-
-      <!-- Step indicators -->
-      <div id="clStepIndicators" class="cl-step-row cl-fs-steps mb-6"></div>
-
-      <!-- Step header -->
-      <div class="cl-fs-step-header">
-        <h4 id="clStepTitle" class="cl-fs-step-title"></h4>
-        <span id="clTfProgress" class="cl-fs-tf-prog"></span>
-      </div>
-
-      <!-- Checklist items -->
-      <div id="clItems" class="cl-items-list cl-fs-items"></div>
-
-      <!-- Navigation -->
-      <div class="cl-fs-nav">
-        <button id="clBtnPrev" onclick="Checklist.prev()" class="cl-nav-btn cl-nav-prev" disabled>
-          <i class="fas fa-arrow-left mr-1.5"></i>Prev
-        </button>
-        <button id="clBtnNext" onclick="Checklist.next()" class="cl-nav-btn cl-nav-next flex-1">
-          Next: MTF <i class="fas fa-arrow-right ml-1.5"></i>
-        </button>
-      </div>
-
-    </div><!-- /cl-fs-body -->
   </div>
 
   <!-- ═══════════════════════════════════════════
