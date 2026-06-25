@@ -18,6 +18,21 @@
 'use strict';
 
 /* ─────────────────────────────────────────────
+   ⓪ EARLY PWA INSTALL PROMPT CAPTURE
+   beforeinstallprompt fires very early — sometimes
+   before DOMContentLoaded — so we must capture it
+   at the top-level, before any module code runs.
+   ───────────────────────────────────────────── */
+window.__pwaDeferred = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.__pwaDeferred = e;
+  console.log('[PWA] beforeinstallprompt captured early ✓');
+  // If PWA module is already initialised, notify it
+  if (window.__pwaReadyCallback) window.__pwaReadyCallback(e);
+});
+
+/* ─────────────────────────────────────────────
    ① CONFIGURATION — replace with your own keys
    ───────────────────────────────────────────── */
 const CONFIG = {
@@ -1461,18 +1476,20 @@ const Network = (() => {
    ⑩ SERVICE WORKER REGISTRATION + PWA INSTALL
    ───────────────────────────────────────────── */
 const PWA = (() => {
-  let _deferredPrompt = null;
-  const LS_INSTALL_DISMISSED = 'fxj_install_dismissed';
+  // Pick up any prompt already captured by the top-level listener,
+  // or wait for it to arrive via __pwaReadyCallback.
+  let _deferredPrompt = window.__pwaDeferred || null;
+  const LS_DISMISSED  = 'fxj_install_dismissed';   // localStorage key
+  const SS_DISMISSED  = 'fxj_install_dismissed_s'; // sessionStorage key (dismiss-for-session)
 
   /* ── Service Worker registration ── */
   const register = async () => {
-    if ('serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.register('./sw.js');
-        console.log('[PWA] Service Worker registered:', reg.scope);
-      } catch (err) {
-        console.info('[PWA] Service Worker not available:', err.message);
-      }
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      console.log('[PWA] Service Worker registered:', reg.scope);
+    } catch (err) {
+      console.info('[PWA] Service Worker not available:', err.message);
     }
   };
 
@@ -1483,6 +1500,7 @@ const PWA = (() => {
     document.referrer.includes('android-app://');
 
   const _showBanner = () => {
+    if (isStandalone()) return;
     const banner = document.getElementById('pwaInstallBanner');
     if (banner) banner.classList.remove('hidden');
   };
@@ -1494,56 +1512,91 @@ const PWA = (() => {
     setTimeout(() => banner.classList.add('hidden'), 260);
   };
 
-  /* ── Public: trigger install from Settings ── */
+  /* Called whenever a new deferred prompt arrives (early or late) */
+  const _onPromptReady = (e) => {
+    _deferredPrompt = e;
+
+    // Safely update Settings button — it may not be defined yet if called very early
+    if (typeof Settings !== 'undefined' && Settings.updateInstallBtn) {
+      Settings.updateInstallBtn();
+    }
+
+    // Show banner after a short delay if user hasn't permanently dismissed
+    if (!localStorage.getItem(LS_DISMISSED) && !sessionStorage.getItem(SS_DISMISSED)) {
+      setTimeout(_showBanner, 1800);
+    }
+  };
+
+  /* ── Public: trigger native install prompt ── */
   const triggerInstall = async () => {
     if (!_deferredPrompt) return false;
-    _deferredPrompt.prompt();
-    const { outcome } = await _deferredPrompt.userChoice;
-    console.info('[PWA] Install outcome:', outcome);
-    _deferredPrompt = null;
-    _hideBannerAnimated();
-    localStorage.setItem(LS_INSTALL_DISMISSED, '1');
-    return outcome === 'accepted';
+    try {
+      _deferredPrompt.prompt();
+      const { outcome } = await _deferredPrompt.userChoice;
+      console.info('[PWA] Install outcome:', outcome);
+      if (outcome === 'accepted') {
+        localStorage.setItem(LS_DISMISSED, '1'); // no need to show banner again
+        _hideBannerAnimated();
+      }
+      _deferredPrompt = null;
+      // Update Settings button regardless of outcome
+      if (typeof Settings !== 'undefined' && Settings.updateInstallBtn) {
+        Settings.updateInstallBtn();
+      }
+      return outcome === 'accepted';
+    } catch (err) {
+      console.warn('[PWA] Install prompt error:', err);
+      return false;
+    }
   };
 
   const canInstall = () => !!_deferredPrompt;
 
-  /* ── Init: capture beforeinstallprompt + wire banner buttons ── */
+  /* ── Wire up banner buttons + listen for late prompt / appinstalled ── */
   const _initInstallPrompt = () => {
-    // Always listen for the event so Settings button can use it
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      _deferredPrompt = e;
+    // Register the callback so the top-level listener can notify us
+    // even if beforeinstallprompt already fired before this point
+    window.__pwaReadyCallback = _onPromptReady;
 
-      // Update Settings button state
-      Settings.updateInstallBtn();
-
-      // Show bottom banner only if not dismissed and not standalone
-      if (!isStandalone() && !localStorage.getItem(LS_INSTALL_DISMISSED)) {
-        setTimeout(_showBanner, 1800);
+    // If the prompt was captured before this init ran, process it now
+    if (window.__pwaDeferred && !_deferredPrompt) {
+      _onPromptReady(window.__pwaDeferred);
+    } else if (_deferredPrompt) {
+      // Already have it — just update button state
+      if (typeof Settings !== 'undefined' && Settings.updateInstallBtn) {
+        Settings.updateInstallBtn();
       }
-    });
+    }
 
+    // appinstalled fires after the user installs from the browser prompt
     window.addEventListener('appinstalled', () => {
+      console.log('[PWA] App installed ✓');
       _hideBannerAnimated();
       _deferredPrompt = null;
-      Settings.updateInstallBtn();
+      window.__pwaDeferred = null;
+      if (typeof Settings !== 'undefined' && Settings.updateInstallBtn) {
+        Settings.updateInstallBtn();
+      }
     });
 
     // Banner Install button
     const installBtn = document.getElementById('pwaInstallBtn');
     if (installBtn) {
       installBtn.addEventListener('click', async () => {
-        await triggerInstall();
+        const accepted = await triggerInstall();
+        if (!accepted && !_deferredPrompt) {
+          // Prompt unavailable — guide the user
+          Toast.show('Use your browser menu → "Add to Home Screen" to install.', 'info', 5000);
+        }
       });
     }
 
-    // Banner Dismiss button
+    // Banner Dismiss button — hides for this session only
     const dismissBtn = document.getElementById('pwaInstallDismiss');
     if (dismissBtn) {
       dismissBtn.addEventListener('click', () => {
         _hideBannerAnimated();
-        sessionStorage.setItem(LS_INSTALL_DISMISSED, '1');
+        sessionStorage.setItem(SS_DISMISSED, '1');
       });
     }
   };
