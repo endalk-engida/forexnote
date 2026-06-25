@@ -1556,144 +1556,244 @@ const PWA = (() => {
 })();
 
 /* ─────────────────────────────────────────────
-   ⑫ CHECKLIST MODULE — HTF/MTF/LTF wizard modal
+   ⑫ CHECKLIST MODULE — Per-page full-screen flow
+   ─────────────────────────────────────────────
+   Each HTF / MTF / LTF step is its own full-screen
+   "page".  The three pages sit side-by-side inside
+   .cl-fs-viewport; navigation slides the viewport
+   with a CSS transform so only one page is visible
+   at a time (no scroll, no accordion — real pages).
    ───────────────────────────────────────────── */
 const Checklist = (() => {
   const TIMEFRAMES = ['HTF', 'MTF', 'LTF'];
   const TF_LABELS  = { HTF: 'Higher Time Frame', MTF: 'Medium Time Frame', LTF: 'Lower Time Frame' };
-  const TF_ICONS   = { HTF: 'fa-chart-line', MTF: 'fa-chart-bar', LTF: 'fa-chart-simple' };
-  const TF_COLORS  = { HTF: '#22d3ee', MTF: '#a78bfa', LTF: '#22c55e' };
+  const TF_ICONS   = { HTF: 'fa-chart-line',     MTF: 'fa-chart-bar',      LTF: 'fa-chart-simple' };
+  const TF_COLORS  = { HTF: '#22d3ee',            MTF: '#a78bfa',           LTF: '#22c55e' };
+  const TF_BG      = { HTF: 'rgba(34,211,238,0.12)', MTF: 'rgba(167,139,250,0.12)', LTF: 'rgba(34,197,94,0.12)' };
 
-  let _step    = 0;          // 0=HTF, 1=MTF, 2=LTF
-  let _items   = {};         // { HTF:[], MTF:[], LTF:[] }
-  let _checked = {};         // { [itemId]: bool }
-  let _tradeId = null;       // optional linked trade id
+  let _step    = 0;
+  let _items   = {};      // { HTF:[], MTF:[], LTF:[] }
+  let _checked = {};      // { [itemId]: bool }
+  let _tradeId = null;
   let _date    = null;
 
-  /** Open the checklist wizard */
+  /* ── Helpers ── */
+  const _escHtml = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const _totalChecks = () =>
+    TIMEFRAMES.reduce((s, t) => s + (_items[t]||[]).filter(i => _checked[i.id]).length, 0);
+  const _totalItems = () =>
+    TIMEFRAMES.reduce((s, t) => s + (_items[t]||[]).length, 0);
+
+  /* ── Open ── */
   const open = async (tradeId = null, dateStr = null) => {
     _step    = 0;
     _checked = {};
     _tradeId = tradeId;
     _date    = dateStr || new Date().toISOString().slice(0, 10);
 
-    // Load items for all 3 timeframes
     for (const tf of TIMEFRAMES) {
       _items[tf] = await DB.getChecklistItems(tf);
     }
-
-    // If linked trade, pre-load saved checks
     if (tradeId) {
       const session = await DB.getChecklistSessionByTrade(tradeId);
       if (session) _checked = session.checks || {};
     }
 
+    // Build all three pages up front (items don't change during a session)
+    _buildAllPages();
+
     document.getElementById('checklistModal').classList.remove('hidden');
-    // Lock body scroll while full-screen checklist is open
     document.body.style.overflow = 'hidden';
-    _render();
+
+    // Jump to the correct page without animation on open
+    _goToPage(_step, false);
   };
 
-  /** Close the wizard */
+  /* ── Close ── */
   const close = () => {
     document.getElementById('checklistModal').classList.add('hidden');
-    // Restore body scroll (MobileMenu.close() also resets this, but be explicit)
     document.body.style.overflow = '';
   };
 
-  /** Render the current step */
-  const _render = () => {
-    const tf      = TIMEFRAMES[_step];
-    const items   = _items[tf] || [];
-    const color   = TF_COLORS[tf];
-    const total   = TIMEFRAMES.reduce((s, t) => s + (_items[t]||[]).length, 0);
-    const doneAll = TIMEFRAMES.reduce((s, t) => s + (_items[t]||[]).filter(i => _checked[i.id]).length, 0);
+  /* ── Build all three page DOM nodes once ── */
+  const _buildAllPages = () => {
+    TIMEFRAMES.forEach((tf, i) => {
+      const color = TF_COLORS[tf];
+      const bg    = TF_BG[tf];
+      const items = _items[tf] || [];
 
-    // Progress bar
-    const pct = total > 0 ? Math.round((doneAll / total) * 100) : 0;
-    document.getElementById('clProgressBar').style.width  = pct + '%';
-    document.getElementById('clProgressPct').textContent  = pct + '%';
-    document.getElementById('clProgressDone').textContent = `${doneAll}/${total} checks`;
-
-    // Step indicators
-    document.getElementById('clStepIndicators').innerHTML = TIMEFRAMES.map((t, i) => {
-      const done      = (_items[t]||[]).length > 0 && (_items[t]||[]).every(it => _checked[it.id]);
-      const isCurrent = i === _step;
-      const bg        = isCurrent ? TF_COLORS[t] : done ? '#334155' : '#1e293b';
-      const textColor = isCurrent ? '#0a0f1e' : done ? '#22c55e' : '#475569';
-      const border    = isCurrent ? TF_COLORS[t] : done ? '#22c55e' : '#334155';
-      return `<div class="cl-step-indicator" style="background:${bg};border-color:${border};color:${textColor}">
-        <i class="fas ${TF_ICONS[t]} text-xs mr-1.5"></i>${t}${done && !isCurrent ? ' <i class="fas fa-check text-[9px] ml-0.5"></i>' : ''}
-      </div>`;
-    }).join('<div class="cl-step-divider"></div>');
-
-    // Title
-    document.getElementById('clStepTitle').textContent = `${tf} — ${TF_LABELS[tf]}`;
-    document.getElementById('clStepTitle').style.color = color;
-    document.getElementById('clStepNum').textContent   = `Step ${_step + 1} of 3`;
-
-    // Checklist items
-    const doneTf = items.filter(i => _checked[i.id]).length;
-    document.getElementById('clTfProgress').textContent = `${doneTf}/${items.length} done`;
-
-    if (items.length === 0) {
-      document.getElementById('clItems').innerHTML = `
-        <div class="cl-empty-tf">
-          <i class="fas fa-list-check text-2xl mb-2" style="color:${color};opacity:0.4"></i>
-          <p>No items for ${tf} yet.</p>
-          <button onclick="ChecklistAdmin.open()" class="cl-link-btn mt-2">
-            <i class="fas fa-gear mr-1"></i>Open Admin to add items
-          </button>
+      // Page header (big badge + TF name)
+      document.getElementById(`clPageHeader${i}`).innerHTML = `
+        <div class="cl-page-tf-badge" style="background:${bg};border:1.5px solid ${color}33;">
+          <i class="fas ${TF_ICONS[tf]}" style="color:${color}"></i>
+        </div>
+        <div>
+          <div class="cl-page-tf-label" style="color:${color}">${tf}</div>
+          <div class="cl-page-tf-sub">${TF_LABELS[tf]}</div>
         </div>`;
-    } else {
-      document.getElementById('clItems').innerHTML = items.map((item, idx) => {
-        const isChecked = !!_checked[item.id];
-        return `<label class="cl-item ${isChecked ? 'cl-item-checked' : ''}" onclick="Checklist.toggle(${item.id}, this)">
-          <span class="cl-checkbox ${isChecked ? 'cl-checkbox-checked' : ''}" style="${isChecked ? `border-color:${color};background:${color}` : ''}">
-            ${isChecked ? '<i class="fas fa-check text-[10px] text-surface-900"></i>' : ''}
-          </span>
-          <span class="cl-item-text">${_escHtml(item.label)}</span>
-          <span class="cl-item-num">${idx + 1}</span>
-        </label>`;
+
+      // Items list
+      const listEl = document.getElementById(`clItems${i}`);
+      if (items.length === 0) {
+        listEl.innerHTML = `
+          <div class="cl-empty-tf">
+            <i class="fas fa-list-check text-2xl mb-2" style="color:${color};opacity:0.4"></i>
+            <p>No items for ${tf} yet.</p>
+            <button onclick="ChecklistAdmin.open()" class="cl-link-btn mt-2">
+              <i class="fas fa-gear mr-1"></i>Open Admin to add items
+            </button>
+          </div>`;
+      } else {
+        listEl.innerHTML = items.map((item, idx) => {
+          const checked = !!_checked[item.id];
+          return `
+            <label class="cl-item${checked ? ' cl-item-checked' : ''}"
+                   onclick="Checklist.toggle(${item.id}, ${i})">
+              <span class="cl-checkbox${checked ? ' cl-checkbox-checked' : ''}"
+                    style="${checked ? `border-color:${color};background:${color}` : ''}">
+                ${checked ? '<i class="fas fa-check text-[10px] text-surface-900"></i>' : ''}
+              </span>
+              <span class="cl-item-text">${_escHtml(item.label)}</span>
+              <span class="cl-item-num">${idx + 1}</span>
+            </label>`;
+        }).join('');
+      }
+    });
+  };
+
+  /* ── Toggle a single item and re-render just that item + shared counters ── */
+  const toggle = (itemId, pageIndex) => {
+    _checked[itemId] = !_checked[itemId];
+    const tf    = TIMEFRAMES[pageIndex];
+    const color = TF_COLORS[tf];
+    const items = _items[tf] || [];
+
+    // Re-render item list for this page only
+    const listEl = document.getElementById(`clItems${pageIndex}`);
+    if (listEl) {
+      listEl.innerHTML = items.map((item, idx) => {
+        const checked = !!_checked[item.id];
+        return `
+          <label class="cl-item${checked ? ' cl-item-checked' : ''}"
+                 onclick="Checklist.toggle(${item.id}, ${pageIndex})">
+            <span class="cl-checkbox${checked ? ' cl-checkbox-checked' : ''}"
+                  style="${checked ? `border-color:${color};background:${color}` : ''}">
+              ${checked ? '<i class="fas fa-check text-[10px] text-surface-900"></i>' : ''}
+            </span>
+            <span class="cl-item-text">${_escHtml(item.label)}</span>
+            <span class="cl-item-num">${idx + 1}</span>
+          </label>`;
       }).join('');
     }
 
-    // Navigation buttons
-    document.getElementById('clBtnPrev').disabled = _step === 0;
-    const isLast = _step === TIMEFRAMES.length - 1;
-    document.getElementById('clBtnNext').innerHTML = isLast
-      ? '<i class="fas fa-floppy-disk mr-1.5"></i>Save & Finish'
-      : `Next: ${TIMEFRAMES[_step + 1]} <i class="fas fa-arrow-right ml-1.5"></i>`;
-    document.getElementById('clBtnNext').style.background = color;
+    // Update global progress bar + counters
+    _updateProgress();
   };
 
-  /** Toggle a checklist item check */
-  const toggle = (itemId, labelEl) => {
-    _checked[itemId] = !_checked[itemId];
-    _render();
+  /* ── Update the shared progress bar and done/pct labels ── */
+  const _updateProgress = () => {
+    const done  = _totalChecks();
+    const total = _totalItems();
+    const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    const bar = document.getElementById('clProgressBar');
+    if (bar) bar.style.width = pct + '%';
+
+    const doneEl = document.getElementById('clProgressDone');
+    const pctEl  = document.getElementById('clProgressPct');
+    if (doneEl) doneEl.textContent = `${done}/${total} checks`;
+    if (pctEl)  pctEl.textContent  = `${pct}%`;
   };
 
-  /** Navigate steps */
-  const prev = () => { if (_step > 0) { _step--; _render(); } };
+  /* ── Slide the viewport to the given page index ── */
+  const _goToPage = (index, animate = true) => {
+    _step = index;
+    const viewport = document.getElementById('clViewport');
+    if (viewport) {
+      // Disable/enable CSS transition for instant jump vs animated slide
+      viewport.style.transition = animate
+        ? 'transform 0.32s cubic-bezier(0.4, 0, 0.2, 1)'
+        : 'none';
+      viewport.style.transform = `translateX(-${index * 100}%)`;
+    }
+
+    const tf    = TIMEFRAMES[index];
+    const color = TF_COLORS[tf];
+
+    // ── Top bar ──
+    const stepNum = document.getElementById('clStepNum');
+    if (stepNum) stepNum.textContent = `${index + 1} / 3`;
+
+    // Dot indicators
+    TIMEFRAMES.forEach((_, i) => {
+      const dot = document.getElementById(`clDot${i}`);
+      if (!dot) return;
+      dot.className = 'cl-fs-dot';
+      const tfDone = (_items[TIMEFRAMES[i]]||[]).length > 0
+        && (_items[TIMEFRAMES[i]]||[]).every(it => _checked[it.id]);
+      if (i < index || tfDone) dot.classList.add('done');
+      if (i === index) {
+        dot.classList.add('active');
+        dot.style.background = color;
+      } else {
+        dot.style.background = '';
+      }
+    });
+
+    // ── Bottom bar ──
+    const prevBtn = document.getElementById('clBtnPrev');
+    const nextBtn = document.getElementById('clBtnNext');
+    const stepLbl = document.getElementById('clStepTitle');
+
+    if (prevBtn) prevBtn.disabled = index === 0;
+    if (stepLbl) {
+      stepLbl.textContent = tf;
+      stepLbl.style.color = color;
+    }
+    if (nextBtn) {
+      const isLast = index === TIMEFRAMES.length - 1;
+      nextBtn.style.background = color;
+      nextBtn.style.boxShadow  = `0 2px 14px ${color}44`;
+      nextBtn.innerHTML = isLast
+        ? '<i class="fas fa-floppy-disk mr-1.5"></i>Save & Finish'
+        : `Next: ${TIMEFRAMES[index + 1]} <i class="fas fa-arrow-right ml-1.5"></i>`;
+    }
+
+    // Update progress bar + counters
+    _updateProgress();
+
+    // Scroll the active page back to top
+    const page = document.getElementById(`clPage${index}`);
+    if (page) page.scrollTop = 0;
+  };
+
+  /* ── Navigate ── */
+  const prev = () => {
+    if (_step > 0) _goToPage(_step - 1);
+  };
+
   const next = async () => {
     if (_step < TIMEFRAMES.length - 1) {
-      _step++;
-      _render();
+      _goToPage(_step + 1);
     } else {
       await _save();
     }
   };
 
-  /** Save session to IndexedDB */
+  /* ── Save ── */
   const _save = async () => {
     try {
       const session = {
-        tradeId:   _tradeId,
-        date:      _date,
-        checks:    _checked,
-        savedAt:   new Date().toISOString(),
-        summary:   TIMEFRAMES.reduce((acc, tf) => {
-          acc[tf] = { total: (_items[tf]||[]).length, done: (_items[tf]||[]).filter(i => _checked[i.id]).length };
+        tradeId: _tradeId,
+        date:    _date,
+        checks:  _checked,
+        savedAt: new Date().toISOString(),
+        summary: TIMEFRAMES.reduce((acc, tf) => {
+          acc[tf] = {
+            total: (_items[tf]||[]).length,
+            done:  (_items[tf]||[]).filter(i => _checked[i.id]).length,
+          };
           return acc;
         }, {}),
       };
@@ -1705,8 +1805,6 @@ const Checklist = (() => {
       Toast.show('Failed to save checklist.', 'error');
     }
   };
-
-  const _escHtml = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   return { open, close, toggle, prev, next };
 })();
