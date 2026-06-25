@@ -1458,22 +1458,101 @@ const Network = (() => {
 })();
 
 /* ─────────────────────────────────────────────
-   ⑩ SERVICE WORKER REGISTRATION
+   ⑩ SERVICE WORKER REGISTRATION + PWA INSTALL
    ───────────────────────────────────────────── */
 const PWA = (() => {
+  // Holds the deferred beforeinstallprompt event
+  let _deferredPrompt = null;
+
+  // localStorage key to suppress banner after user has acted on it
+  const LS_INSTALL_DISMISSED = 'fxj_install_dismissed';
+
+  /* ── Service Worker registration ── */
   const register = async () => {
     if ('serviceWorker' in navigator) {
       try {
         const reg = await navigator.serviceWorker.register('./sw.js');
         console.log('[PWA] Service Worker registered:', reg.scope);
       } catch (err) {
-        // SW is optional — app works without it
         console.info('[PWA] Service Worker not available:', err.message);
       }
     }
   };
 
-  return { register };
+  /* ── Install banner logic ── */
+  const _isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://');
+
+  const _showBanner = () => {
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.classList.remove('hidden');
+  };
+
+  const _hideBannerAnimated = () => {
+    const banner = document.getElementById('pwaInstallBanner');
+    if (!banner) return;
+    banner.classList.add('pwa-fade-out');
+    setTimeout(() => banner.classList.add('hidden'), 260);
+  };
+
+  const _initInstallPrompt = () => {
+    // Don't show if already installed or permanently dismissed
+    if (_isStandalone()) return;
+    if (localStorage.getItem(LS_INSTALL_DISMISSED)) return;
+
+    // Capture the browser's native prompt before it fires
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      _deferredPrompt = e;
+      // Small delay so app content renders first — avoids banner flash on cold load
+      setTimeout(_showBanner, 1800);
+    });
+
+    // If app is installed while the banner is open, hide it
+    window.addEventListener('appinstalled', () => {
+      _hideBannerAnimated();
+      _deferredPrompt = null;
+    });
+
+    // Install button
+    const installBtn = document.getElementById('pwaInstallBtn');
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (!_deferredPrompt) return;
+        _deferredPrompt.prompt();
+        const { outcome } = await _deferredPrompt.userChoice;
+        console.info('[PWA] Install prompt outcome:', outcome);
+        _deferredPrompt = null;
+        _hideBannerAnimated();
+        // Remember choice either way so we don't pester the user again
+        localStorage.setItem(LS_INSTALL_DISMISSED, '1');
+      });
+    }
+
+    // Dismiss (×) button
+    const dismissBtn = document.getElementById('pwaInstallDismiss');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        _hideBannerAnimated();
+        // Remember dismissal for this browser session only (not permanently)
+        sessionStorage.setItem(LS_INSTALL_DISMISSED, '1');
+      });
+    }
+  };
+
+  /* ── Public ── */
+  const init = () => {
+    // Wire up install prompt after DOM is settled
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', _initInstallPrompt);
+    } else {
+      _initInstallPrompt();
+    }
+  };
+
+  return { register, init };
 })();
 
 /* ─────────────────────────────────────────────
@@ -1510,12 +1589,16 @@ const Checklist = (() => {
     }
 
     document.getElementById('checklistModal').classList.remove('hidden');
+    // Lock body scroll while full-screen checklist is open
+    document.body.style.overflow = 'hidden';
     _render();
   };
 
   /** Close the wizard */
   const close = () => {
     document.getElementById('checklistModal').classList.add('hidden');
+    // Restore body scroll (MobileMenu.close() also resets this, but be explicit)
+    document.body.style.overflow = '';
   };
 
   /** Render the current step */
@@ -1736,6 +1819,9 @@ const App = (() => {
 
       // Register PWA service worker
       await PWA.register();
+
+      // Initialise PWA install prompt interception
+      PWA.init();
 
       // ── Google Drive: init GSI and attempt silent auth ──
       // Run inside window.load so the GSI library script is fully parsed.
