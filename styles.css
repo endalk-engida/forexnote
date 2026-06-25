@@ -1289,11 +1289,12 @@ html:not(.dark) .drive-sync-overlay {
 .cl-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 9000;          /* above header (40), modals (50), PWA banner (55) */
   display: flex;
   flex-direction: column;
-  background: var(--bg-base);
+  background: #0a0f1e;    /* solid dark — surface-900, no transparency */
   overflow: hidden;
+  isolation: isolate;     /* new stacking context so nothing bleeds through */
 }
 .cl-fullscreen.hidden { display: none; }
 
@@ -1532,7 +1533,7 @@ html:not(.dark) .drive-sync-overlay {
 .cl-fs-btn-next:active { transform: scale(0.97); }
 
 /* Light-mode overrides */
-html:not(.dark) .cl-fullscreen { background: var(--bg-base); }
+html:not(.dark) .cl-fullscreen { background: #f8fafc; }  /* solid white */
 html:not(.dark) .cl-fs-topbar,
 html:not(.dark) .cl-fs-bottom-bar { background: var(--bg-card); }
 html:not(.dark) .cl-fs-back-btn  { background: var(--bg-raised); }
