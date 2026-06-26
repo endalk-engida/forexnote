@@ -1099,6 +1099,9 @@ const GoogleDriveSync = (() => {
         _updateDriveButton(true);
         Toast.show('Connected to Google Drive ✓', 'success');
 
+        // Share token with ShareJournal module
+        if (typeof ShareJournal !== 'undefined') ShareJournal._setToken(_accessToken);
+
         // On every (re-)connect: merge Drive → local, then push
         await _fetchAndMerge({ silent: false });
         await _pushSnapshot({ quiet: false });
@@ -1145,6 +1148,9 @@ const GoogleDriveSync = (() => {
             _accessToken = response.access_token;
             _updateDriveButton(true);
             console.info('[GSI] Silent auth OK — pulling Drive snapshot…');
+
+            // Share token with ShareJournal module
+            if (typeof ShareJournal !== 'undefined') ShareJournal._setToken(_accessToken);
 
             // ── AUTO-SYNC ON LOAD ──
             // 1. Fetch Drive JSON; hard-merge (Drive = source of truth)
@@ -2138,11 +2144,478 @@ const ChecklistAdmin = (() => {
 })();
 
 
+/* ─────────────────────────────────────────────
+   ⑭ SHARE JOURNAL MODULE
+   ─────────────────────────────────────────────
+   Generates a view-only Google Drive link for a
+   filtered date-range slice of the trade log.
+
+   Flow:
+     1. User picks date range + trade type filter.
+     2. Trades are filtered from IndexedDB strictly
+        between startDate and endDate (inclusive).
+     3. Filtered trades are sanitised and uploaded as
+        FX_Journal_Shared_Range.json to Google Drive.
+     4. The file is made public (anyone with link → view).
+     5. The WebContentLink is copied to the clipboard.
+     6. When the app loads with ?shareFileId=ID it boots
+        in strict Read-Only Preview mode (handled in App.init).
+   ───────────────────────────────────────────── */
+const ShareJournal = (() => {
+  let _shareType = 'all';        // 'all' | 'backtest' | 'live'
+  let _lastLink  = null;         // most recent generated link
+
+  /* ── Panel toggle ── */
+  const togglePanel = () => {
+    const body    = document.getElementById('shareJournalBody');
+    const chevron = document.getElementById('shareJournalChevron');
+    const toggle  = document.getElementById('shareJournalToggle');
+    const isOpen  = !body.classList.contains('hidden');
+    body.classList.toggle('hidden', isOpen);
+    chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    toggle.setAttribute('aria-expanded', String(!isOpen));
+  };
+
+  /* ── Trade type selector ── */
+  const setType = (type) => {
+    _shareType = type;
+    ['All','Backtest','Live'].forEach(t => {
+      const btn = document.getElementById(`shareType${t}`);
+      if (btn) btn.classList.toggle('share-type-active', t.toLowerCase() === type || (type === 'all' && t === 'All'));
+    });
+  };
+
+  /* ── Sanitise a trade object for sharing — strip DB internals ── */
+  const _sanitise = (t) => ({
+    date:          t.date         || '',
+    type:          t.type         || '',
+    pair:          t.pair         || '',
+    outcome:       t.outcome      || '',
+    rr:            t.rr           ?? null,
+    notes:         t.notes        || '',
+    screenshotUrl: t.screenshotUrl || '',
+    driveId:       t.driveId      || '',   // stable reference, not editable
+    createdAt:     t.createdAt    || '',
+  });
+
+  /* ── Upload a JSON blob to Drive, make it public, return webViewLink ── */
+  const _uploadShareFile = async (payload, accessToken) => {
+    const boundary  = '-------FXShareBoundary271828';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelim= `\r\n--${boundary}--`;
+    const encoder   = new TextEncoder();
+    const jsonStr   = JSON.stringify(payload, null, 2);
+
+    const metadata = {
+      name:     'FX_Journal_Shared_Range.json',
+      mimeType: 'application/json',
+    };
+
+    const metaPart  = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata);
+    const mediaPart = delimiter + 'Content-Type: application/json\r\n\r\n';
+    const metaB  = encoder.encode(metaPart);
+    const mediaB = encoder.encode(mediaPart);
+    const jsonB  = encoder.encode(jsonStr);
+    const closeB = encoder.encode(closeDelim);
+    const buf    = new Uint8Array(metaB.length + mediaB.length + jsonB.length + closeB.length);
+    let off = 0;
+    [metaB, mediaB, jsonB, closeB].forEach(a => { buf.set(a, off); off += a.length; });
+
+    // 1. Upload file
+    const uploadRes = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink',
+      {
+        method:  'POST',
+        headers: {
+          Authorization:  `Bearer ${accessToken}`,
+          'Content-Type': `multipart/related; boundary="${boundary}"`,
+        },
+        body: buf,
+      }
+    );
+    if (!uploadRes.ok) {
+      const err = await uploadRes.json();
+      throw new Error(err.error?.message || `Upload failed (${uploadRes.status})`);
+    }
+    const file = await uploadRes.json();
+
+    // 2. Set permission: anyone with the link can view
+    const permRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${file.id}/permissions`,
+      {
+        method:  'POST',
+        headers: {
+          Authorization:  `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+      }
+    );
+    if (!permRes.ok) {
+      const err = await permRes.json();
+      throw new Error(err.error?.message || `Permission set failed (${permRes.status})`);
+    }
+
+    // 3. Re-fetch with webContentLink + webViewLink (sometimes not in POST response)
+    const metaRes  = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${file.id}?fields=id,webViewLink,webContentLink`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const meta = await metaRes.json();
+
+    // Build the shareable app URL with the file ID embedded as a query param
+    const appOrigin  = window.location.origin + window.location.pathname;
+    const shareAppURL = `${appOrigin}?shareFileId=${file.id}`;
+
+    return { fileId: file.id, driveLink: meta.webViewLink || meta.webContentLink, appShareURL: shareAppURL };
+  };
+
+  /* ── Main: Generate Share Link ── */
+  const generateLink = async () => {
+    const startDate = document.getElementById('shareStartDate')?.value || '';
+    const endDate   = document.getElementById('shareEndDate')?.value   || '';
+
+    if (!startDate || !endDate) {
+      Toast.show('Please select both Start Date and End Date.', 'warn');
+      return;
+    }
+    if (startDate > endDate) {
+      Toast.show('Start Date must be on or before End Date.', 'warn');
+      return;
+    }
+
+    if (!GoogleDriveSync.isConnected()) {
+      Toast.show('Google Drive is not connected. Please connect first.', 'warn', 4000);
+      return;
+    }
+
+    // ── Button: loading state ──
+    const btn   = document.getElementById('btnGenerateShareLink');
+    const label = document.getElementById('shareBtnLabel');
+    const icon  = document.getElementById('shareIcon');
+    btn.classList.add('generating');
+    btn.disabled = true;
+    icon.className = 'fas fa-spinner spin';
+    label.textContent = 'Generating…';
+
+    try {
+      // ── Fetch and filter trades ──
+      let allTrades = await DB.getTrades(_shareType === 'all' ? null : _shareType);
+      const filtered = allTrades.filter(t => t.date >= startDate && t.date <= endDate);
+
+      if (filtered.length === 0) {
+        Toast.show('No trades found in that date range.', 'info');
+        return;
+      }
+
+      const sanitised = filtered.map(_sanitise);
+
+      // ── Calc summary stats for the shared payload ──
+      const wins   = sanitised.filter(t => t.outcome === 'win').length;
+      const losses = sanitised.filter(t => t.outcome === 'loss').length;
+      const netRR  = sanitised.reduce((s, t) => {
+        const r = parseFloat(t.rr) || 1;
+        return s + (t.outcome === 'win' ? r : -r);
+      }, 0);
+
+      const payload = {
+        shareVersion:  '1.0',
+        generatedAt:   new Date().toISOString(),
+        dateRange:     { from: startDate, to: endDate },
+        tradeType:     _shareType,
+        tradeCount:    sanitised.length,
+        summary:       { wins, losses, winRate: sanitised.length > 0 ? Math.round(wins / sanitised.length * 100) : 0, netRR: +netRR.toFixed(2) },
+        trades:        sanitised,
+      };
+
+      // ── Get the access token from GoogleDriveSync's internal state ──
+      // We access the token by using the Drive API — the token is managed
+      // by the GSI library; we retrieve it via a lightweight sentinel fetch.
+      // Since GoogleDriveSync keeps _accessToken private, we use the public
+      // _driveGet pattern by calling syncPendingTrades which re-exposes the token
+      // through _pushSnapshot internals. Instead, we call our own internal helper:
+      const accessToken = await _getAccessToken();
+      if (!accessToken) throw new Error('No Drive access token. Please reconnect.');
+
+      const { fileId, appShareURL } = await _uploadShareFile(payload, accessToken);
+
+      _lastLink = appShareURL;
+
+      // ── Show result UI ──
+      const resultArea = document.getElementById('shareResultArea');
+      const linkEl     = document.getElementById('shareResultLink');
+      resultArea.classList.remove('hidden');
+      linkEl.href        = appShareURL;
+      linkEl.textContent = appShareURL;
+
+      // ── Copy to clipboard ──
+      await navigator.clipboard.writeText(appShareURL);
+      Toast.show(`የማጋሪያ ሊንክ ኮፒ ተደርጓል! (${sanitised.length} trades)`, 'success', 4500);
+
+    } catch (err) {
+      console.error('[ShareJournal] Error:', err);
+      Toast.show(`Share failed: ${err.message}`, 'error', 5000);
+    } finally {
+      btn.classList.remove('generating');
+      btn.disabled = false;
+      icon.className = 'fas fa-share-nodes';
+      label.textContent = 'Generate Share Link';
+    }
+  };
+
+  /* ── Copy the last link again ── */
+  const copyLink = async () => {
+    if (!_lastLink) return;
+    try {
+      await navigator.clipboard.writeText(_lastLink);
+      Toast.show('ሊንኩ ተቀድቷል!', 'success');
+    } catch {
+      Toast.show('Could not copy — please copy the link manually.', 'warn');
+    }
+  };
+
+  /* ── Internal: extract Drive access token ──
+     GoogleDriveSync._accessToken is private, so we piggyback on
+     a read-only metadata request to validate the current session.
+     We store a module-level reference when Drive connects. ── */
+  let _cachedToken = null;
+
+  const _getAccessToken = async () => {
+    if (_cachedToken) return _cachedToken;
+
+    // Try a lightweight sentinel Drive request.
+    // If it returns 200 we know the token stored in GSI is valid.
+    // We need the actual token value — expose it via a bridge:
+    return window.__fxDriveToken || null;
+  };
+
+  /* Public method for GoogleDriveSync to register the token */
+  const _setToken = (token) => {
+    _cachedToken = token;
+    window.__fxDriveToken = token;
+  };
+
+  return { togglePanel, setType, generateLink, copyLink, _setToken };
+})();
+
+/* ─────────────────────────────────────────────
+   ⑮ READ-ONLY PREVIEW MODULE
+   Boots the app in a strict read-only state when
+   ?shareFileId=DRIVE_ID is present in the URL.
+   ───────────────────────────────────────────── */
+const ReadOnlyPreview = (() => {
+
+  /** Fetch the shared JSON directly from Google Drive (no auth needed — file is public) */
+  const _fetchSharedFile = async (fileId) => {
+    // Direct Drive content download — works for public "anyone with link" files
+    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${CONFIG.API_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      // Fallback: try the export URL
+      const fb = await fetch(`https://drive.google.com/uc?export=download&id=${fileId}`);
+      if (!fb.ok) throw new Error(`Could not fetch shared file (${res.status})`);
+      return await fb.json();
+    }
+    return await res.json();
+  };
+
+  /** Render stats from the shared payload */
+  const _renderStats = (summary, dateRange) => {
+    const { wins = 0, losses = 0, winRate = 0, netRR = 0 } = summary || {};
+    const total = wins + losses;
+
+    const _s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    _s('statTotal',  total);
+    _s('statWins',   wins);
+    _s('statLosses', losses);
+    _s('statWR',     total > 0 ? `${winRate}%` : '—');
+
+    // Simple RR display
+    const winRR  = 0; // not available in summary-only mode; hide bar
+    const lossRR = 0;
+    _s('statWinRR',  '—');
+    _s('statLossRR', '—');
+
+    const netEl = document.getElementById('statNetRR');
+    if (netEl) {
+      netEl.textContent = total > 0 ? (netRR >= 0 ? '+' : '') + netRR.toFixed(2) + 'R' : '—';
+      netEl.className   = netEl.className.replace(/text-\S+/g, '');
+      netEl.classList.add(total === 0 ? 'text-slate-400' : netRR > 0 ? 'text-win' : netRR < 0 ? 'text-loss' : 'text-slate-300');
+    }
+
+    // Update date range badge
+    const meta = document.getElementById('readOnlyMeta');
+    if (meta && dateRange) {
+      meta.textContent = `— ${dateRange.from} → ${dateRange.to}  ·  ${total} trade${total !== 1 ? 's' : ''}`;
+    }
+  };
+
+  /** Render the trade cards in read-only mode */
+  const _renderTrades = (trades) => {
+    const container = document.getElementById('tradeCards');
+    const emptyState = document.getElementById('emptyState');
+    if (!container) return;
+
+    if (!trades || trades.length === 0) {
+      emptyState.classList.add('show');
+      return;
+    }
+    emptyState.classList.remove('show');
+    document.getElementById('tradeListContainer')?.classList.add('read-only-mode');
+
+    const _esc = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    container.innerHTML = trades.map(t => {
+      const outcomeClass = t.outcome === 'win' ? 'win' : 'loss';
+      const outcomeIcon  = t.outcome === 'win' ? 'fa-check-circle' : 'fa-xmark-circle';
+      const dateDisplay  = new Date(t.date + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+      const rrDisplay    = t.rr != null ? `1:${t.rr}` : '—';
+      const notesHtml    = t.notes ? `<p class="trade-notes">${_esc(t.notes)}</p>` : '';
+      const screenshotLink = t.screenshotUrl
+        ? `<a href="${_esc(t.screenshotUrl)}" target="_blank" rel="noopener" class="card-btn"><i class="fas fa-image"></i>Chart</a>`
+        : `<span class="card-btn opacity-40 cursor-not-allowed"><i class="fas fa-image"></i>No Chart</span>`;
+
+      return `
+        <div class="trade-card ${outcomeClass}" data-id="${_esc(t.driveId)}">
+          <div class="trade-card-header">
+            <span class="trade-pair">${_esc(t.pair)}</span>
+            <span class="outcome-badge ${outcomeClass}">
+              <i class="fas ${outcomeIcon} text-[10px]"></i>${t.outcome === 'win' ? 'Win' : 'Loss'}
+            </span>
+          </div>
+          <div class="trade-meta">
+            <span class="meta-chip"><i class="fas fa-calendar-day"></i><strong>${dateDisplay}</strong></span>
+            <span class="meta-chip"><i class="fas fa-scale-balanced"></i><strong>RR ${rrDisplay}</strong></span>
+          </div>
+          ${notesHtml}
+          <div class="trade-card-actions">
+            ${screenshotLink}
+            <span class="card-btn opacity-50 cursor-not-allowed"><i class="fas fa-lock text-[10px]"></i>Read Only</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Update pagination info text
+    const pageInfo = document.getElementById('pageInfo');
+    if (pageInfo) pageInfo.textContent = `${trades.length} shared trade${trades.length !== 1 ? 's' : ''}`;
+  };
+
+  /** Hide all write/edit UI elements */
+  const _applyReadOnlyDOM = () => {
+    // Elements to completely hide
+    const hideSelectors = [
+      '#shareJournalSection',   // the share panel itself
+      '.hdr-checklist-mobile',  // mobile checklist button
+      '#btnGoogleDrive',        // drive connect
+      '#btnSync',               // sync button
+      '#btnGoogleDriveMobile',  // mobile drive
+      '#btnSyncMobile',         // mobile sync
+      // Settings button — hide in both desktop and mobile
+      '[onclick="Settings.open()"]',
+      '[onclick*="Settings.open"]',
+      '[onclick*="ChecklistAdmin.open"]',
+      '[onclick*="Checklist.open"]',
+      // Export buttons (inappropriate in shared view)
+      '.export-btn',
+      // Filter add trade options
+    ];
+    hideSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => el.classList.add('read-only-hidden'));
+    });
+
+    // Hide the calendar section (not useful in shared view)
+    const calSection = document.querySelector('section.bg-surface-800.rounded-2xl:has(#calendarGrid)');
+    if (calSection) calSection.classList.add('read-only-hidden');
+
+    // Show read-only banner
+    document.getElementById('readOnlyBanner')?.classList.remove('hidden');
+
+    // Update page title
+    document.title = 'FX Journal — Shared Trade Log (Read Only)';
+  };
+
+  /** Main entry point — called by App.init when shareFileId is detected */
+  const boot = async (fileId) => {
+    console.log('[ReadOnlyPreview] Booting in read-only mode, fileId:', fileId);
+
+    _applyReadOnlyDOM();
+
+    // Show loading in trade container
+    const container = document.getElementById('tradeCards');
+    if (container) {
+      container.innerHTML = `
+        <div class="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
+          <i class="fas fa-spinner spin text-2xl text-violet-400"></i>
+          <p class="text-sm">Loading shared trade log…</p>
+        </div>`;
+    }
+
+    try {
+      const data = await _fetchSharedFile(fileId);
+
+      if (!data || !Array.isArray(data.trades)) {
+        throw new Error('Invalid or expired shared file.');
+      }
+
+      // Render stats using the embedded summary
+      _renderStats(data.summary, data.dateRange);
+
+      // Render trades
+      _renderTrades(data.trades);
+
+      // Update tab label to show "Shared Log"
+      const tabBt = document.getElementById('tabBacktest');
+      const tabLv = document.getElementById('tabLive');
+      if (tabBt) { tabBt.innerHTML = `<i class="fas fa-share-nodes mr-1.5"></i>Shared Log <span class="tab-count">${data.trades.length}</span>`; tabBt.classList.add('active-tab'); }
+      if (tabLv) tabLv.classList.add('hidden');
+
+      Toast.show(`Shared log loaded — ${data.trades.length} trades`, 'success', 4000);
+
+    } catch (err) {
+      console.error('[ReadOnlyPreview] Error:', err);
+      if (container) {
+        container.innerHTML = `
+          <div class="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-loss/10 flex items-center justify-center">
+              <i class="fas fa-triangle-exclamation text-loss text-xl"></i>
+            </div>
+            <p class="text-slate-300 text-sm font-medium">Could not load shared trade log</p>
+            <p class="text-slate-500 text-xs max-w-xs">${err.message}</p>
+          </div>`;
+      }
+      Toast.show(`Error: ${err.message}`, 'error', 6000);
+    }
+  };
+
+  return { boot };
+})();
+
 const App = (() => {
   const init = async () => {
     console.log('[FX Journal] Initialising…');
 
     try {
+      // ── Check for shared preview mode FIRST ──
+      const urlParams   = new URLSearchParams(window.location.search);
+      const shareFileId = urlParams.get('shareFileId');
+
+      if (shareFileId) {
+        // ── READ-ONLY PREVIEW MODE ──
+        console.log('[App] Share mode detected, fileId:', shareFileId);
+
+        // Minimal init (no DB seed, no calendar, no drive sync)
+        Network.init();
+        await PWA.register();
+
+        // Boot the read-only preview
+        await ReadOnlyPreview.boot(shareFileId);
+
+        console.log('[FX Journal] Read-only preview ready ✓');
+        return; // Do NOT continue with normal init
+      }
+
+      // ── NORMAL MODE ──
+
       // Seed default checklist items (only on first run)
       await DB.seedChecklistDefaults();
 
