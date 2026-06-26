@@ -259,7 +259,7 @@ const DB = (() => {
     /* ── Seed default items if DB is fresh ── */
     seedChecklistDefaults: async () => {
       // Version key — bump this string whenever rules change to force a re-seed.
-      const SEED_VERSION = 'amharic-v1';
+      const SEED_VERSION = 'amharic-v2';
       const storedVersion = localStorage.getItem('fx-checklist-seed-version');
       if (storedVersion === SEED_VERSION) return; // already seeded this version
 
@@ -267,29 +267,27 @@ const DB = (() => {
       await db.checklistItems.clear();
       localStorage.setItem('fx-checklist-seed-version', SEED_VERSION);
       const defaults = [
-        // HTF — Weekly/1W — የታሪክ ግንባታ (Narrative Creation)
-        { timeframe: 'HTF',  label: 'የአሁኑን የዋጋ ጉዞ (Current Leg) ለይ፦ ዋጋው በከፍተኛ ግስጋሴ (Impulsive) ወይስ በትረማስ (Corrective) ላይ ነው?', order: 0 },
-        { timeframe: 'HTF',  label: 'መዋቅራዊ አቅጣጫን ለይ፦ ገበያው HH/HL (Bullish) ወይስ LL/LH (Bearish) እየሠራ ነው? [22, 111]', order: 1 },
-        { timeframe: 'HTF',  label: 'የሳምንቱን የዋጋ ክልል (Range) አውጣ፦ ዋጋው በዚህ ሳምንት ሊንቀሳቀስ የሚችልበትን ከፍተኛ እና ዝቅተኛ ነጥብ ምልክት አድርግ [112, 141]።', order: 2 },
-        { timeframe: 'HTF',  label: 'ወደ ግራ ተመልከት (Look Left)፦ ግልጽ ያልተነኩ ቀጠናዎችን (Untapped POIs)፣ ሊኩዊዲቲ (EQH/EQL) እና ክፍተቶችን (Gaps/Inefficiency) ፈልግ [22, 113]።', order: 3 },
-        { timeframe: 'HTF',  label: 'የሳምንቱን አቅጣጫ (Bias) ወስን፦ ዋጋው ወደ የትኛው ሊኩዊዲቲ ወይም ቀጠና እንደ ማግኔት ይሳባል? [23, 116]', order: 4 },
-        // MTF — 1D, 4H — ትንተናን ማጥራት (Narrative Refinement)
-        { timeframe: 'MTF',  label: 'የ HTF ታሪክን አረጋግጥ፦ በትልቁ ያየኸው አቅጣጫ አሁንም አልተቀየረም?', order: 0 },
-        { timeframe: 'MTF',  label: 'ቀጠናዎችን አጥራ (Refine POIs)፦ የሳምንቱን ትላልቅ ቀጠናዎች ወደ ዕለታዊ ወይም የ 4 ሰዓት ጥቃቅን ቀጠናዎች ቀይር [28, 117]።', order: 1 },
-        { timeframe: 'MTF',  label: 'የመንገዱን ግልጽነት አረጋግጥ፦ ዋጋው ከቀጠናው ተነስቶ እስከ ግቡ (Target) ድረስ የሚገታው ሌላ ቀጠና የለም?', order: 2 },
-        { timeframe: 'MTF',  label: 'እቅድህን በዝርዝር አስቀምጥ፦ "ዋጋው ይህን POI ቢነካ እና LTF BOS ቢሰጠኝ፣ እገዛለሁ" የሚል If This Then That እቅድ ይኑርህ [29, 104]።', order: 3 },
-        // LTF — 1H እስከ 1m — የንግድ አፈጻጸም (Narrative Trading)
-        { timeframe: 'LTF',  label: 'ቀጠና መነካቱን አረጋግጥ፦ ዋጋው የ MTF ቀጠና ውስጥ ገብቷል? [40, 211]', order: 0 },
-        { timeframe: 'LTF',  label: 'Confirmation Entry (CE)፦ የመዋቅር ሽግግር (Structural Shift) ከተፈጠረ በኋላ ግባ [39, 237]።', order: 1 },
-        { timeframe: 'LTF',  label: 'Momentum Entry (ME)፦ ገበያው በጣም ፈጣን ከሆነ ወዲያውኑ በሻማ መዘጋት (Body Closure) ግባ [40, 253]።', order: 2 },
-        { timeframe: 'LTF',  label: 'የሻማ አካል መዘጋት (Body Closure)፦ BOS በሻማ አካል እንጂ በጅራት (Wick) ብቻ አለመሆኑን አረጋግጥ [188, 210]።', order: 3 },
-        { timeframe: 'LTF',  label: 'ስጋት 1% ብቻ — RR ቢያንስ 1:3 መሆኑን አረጋግጥ [48, 522, 523, 524]።', order: 4 },
-        { timeframe: 'LTF',  label: 'SL አቀማመጥ፦ ቀጠናው ከከሸፈ (Invalidation point) ትሬዱ ትርጉም በማይሰጥበት ቦታ ላይ አድርግ [264, 270]።', order: 5 },
-        // LTF+ — "Trades Inside of Trades" አወሳሰድ
-        { timeframe: 'LTF+', label: 'የትልቁን አቅጣጫ እወቅ፦ HTF ለሽያጭ (Sell) ከጠበቀ ዋጋው ወደ ሽያጭ ቀጠናው የሚመለስበትን Pullback ለይ።', order: 0 },
-        { timeframe: 'LTF+', label: 'የጥቃቅን BOS ፈልግ፦ ዋጋው Pullback ሲያደርግ በ 15m ወይም 5m ለግዢ (Buy) BOS ካሳየ እንደ ገለልተኛ ትሬድ ውሰደው [34, 137]።', order: 1 },
-        { timeframe: 'LTF+', label: 'ግልጽ TP ይኑርህ፦ ትርፍ (TP) በትልቁ ታሪክ ላይ ካለው የሽያጭ ቀጠና (Supply) በላይ መሄድ የለበትም [129, 135]።', order: 2 },
-        { timeframe: 'LTF+', label: 'ሁለት ጊዜ አትቀጣ፦ ውስጣዊ ትሬዱ ላይ የምትወስደው ስጋት ከጠቅላላው 1% እንዳይበልጥ ተጠንቀቅ።', order: 3 },
+        // 4 checklist items — one per timeframe section
+        {
+          timeframe: 'HTF',
+          label: 'HTF (Weekly/1W) — የታሪክ ግንባታ (Narrative Creation):\n1. የአሁኑን የዋጋ ጉዞ (Current Leg) ለይ፦ ዋጋው በከፍተኛ ግስጋሴ (Impulsive) ወይስ በትረማስ (Corrective) ላይ ነው?\n2. መዋቅራዊ አቅጣጫን ለይ፦ ገበያው HH/HL (Bullish) ወይስ LL/LH (Bearish) እየሠራ ነው? [22, 111]\n3. የሳምንቱን የዋጋ ክልል (Range) አውጣ፦ ዋጋው በዚህ ሳምንት ሊንቀሳቀስ የሚችልበትን ከፍተኛ እና ዝቅተኛ ነጥብ ምልክት አድርግ [112, 141]።\n4. ወደ ግራ ተመልከት (Look Left)፦ ያልተነኩ ቀጠናዎችን (Untapped POIs)፣ ሊኩዊዲቲ (EQH/EQL) እና ክፍተቶችን (Gaps/Inefficiency) ፈልግ [22, 113]።\n5. የሳምንቱን አቅጣጫ (Bias) ወስን፦ ዋጋው ወደ የትኛው ሊኩዊዲቲ ወይም ቀጠና እንደ ማግኔት ይሳባል? [23, 116]',
+          order: 0,
+        },
+        {
+          timeframe: 'MTF',
+          label: 'MTF (1D, 4H) — ትንተናን ማጥራት (Narrative Refinement):\n1. የ HTF ታሪክን አረጋግጥ፦ በትልቁ ያየኸው አቅጣጫ አሁንም አልተቀየረም?\n2. ቀጠናዎችን አጥራ (Refine POIs)፦ የሳምንቱን ትላልቅ ቀጠናዎች ወደ ዕለታዊ ወይም የ 4 ሰዓት ጥቃቅን ቀጠናዎች ቀይር [28, 117]።\n3. የመንገዱን ግልጽነት አረጋግጥ፦ ዋጋው ከቀጠናው ተነስቶ እስከ ግቡ (Target) ድረስ የሚገታው ሌላ ቀጠና የለም?\n4. እቅድህን በዝርዝር አስቀምጥ፦ "ዋጋው ይህን POI ቢነካ እና LTF BOS ቢሰጠኝ፣ እገዛለሁ" — If This Then That [29, 104]።',
+          order: 1,
+        },
+        {
+          timeframe: 'LTF',
+          label: 'LTF (1H እስከ 1m) — የንግድ አፈጻጸም (Narrative Trading):\n1. ቀጠና መነካቱን አረጋግጥ፦ ዋጋው የ MTF ቀጠና ውስጥ ገብቷል? [40, 211]\n2. Confirmation Entry (CE)፦ የመዋቅር ሽግግር (Structural Shift) ከተፈጠረ በኋላ ግባ [39, 237]።\n3. Momentum Entry (ME)፦ ገበያው በጣም ፈጣን ከሆነ ወዲያውኑ በሻማ አካል (Body Closure) ግባ [40, 253]።\n4. Body Closure፦ BOS በሻማ አካል እንጂ በጅራት (Wick) ብቻ አለመሆኑን አረጋግጥ [188, 210]።\n5. ስጋት 1% ብቻ — RR ቢያንስ 1:3 መሆኑን አረጋግጥ [48, 522, 523, 524]።\n6. SL አቀማመጥ፦ ቀጠናው ከከሸፈ (Invalidation point) ትሬዱ ትርጉም በማይሰጥበት ቦታ ላይ አድርግ [264, 270]።',
+          order: 2,
+        },
+        {
+          timeframe: 'LTF+',
+          label: '"Trades Inside of Trades" አወሳሰድ (LTF Framework):\n1. የትልቁን አቅጣጫ እወቅ፦ HTF ለሽያጭ (Sell) ከጠበቀ ዋጋው ወደ ሽያጭ ቀጠናው የሚመለስበትን Pullback ለይ።\n2. የጥቃቅን BOS ፈልግ፦ ዋጋው Pullback ሲያደርግ በ 15m ወይም 5m ለግዢ (Buy) BOS ካሳየ እንደ ገለልተኛ ትሬድ ውሰደው [34, 137]።\n3. ግልጽ TP ይኑርህ፦ TP በትልቁ ታሪክ ካለው የሽያጭ ቀጠና (Supply) በላይ መሄድ የለበትም [129, 135]።\n4. ሁለት ጊዜ አትቀጣ፦ ውስጣዊ ትሬዱ ላይ የምትወስደው ስጋት ከጠቅላላው 1% እንዳይበልጥ ተጠንቀቅ።',
+          order: 3,
+        },
       ];
       await db.checklistItems.bulkAdd(defaults);
     },
@@ -1791,38 +1789,51 @@ const Checklist = (() => {
 
   /* ── Parse reference tags like [22, 111] from label text ── */
   const _parseLabel = (rawLabel) => {
-    // Matches trailing [numbers, numbers] reference tag
-    const refMatch = rawLabel.match(/\[([0-9,\s]+)\]\s*$/);
-    if (!refMatch) return { text: rawLabel, refs: [] };
-    const text = rawLabel.slice(0, rawLabel.lastIndexOf(refMatch[0])).trim();
-    const refs  = refMatch[1].split(',').map(r => r.trim()).filter(Boolean);
-    return { text, refs };
+    // For multi-line labels: split on \n, collect ref tags from ALL lines
+    const lines = rawLabel.split('\n');
+    const refs = [];
+    const cleanLines = lines.map(line => {
+      const refMatch = line.match(/\[([0-9,\s]+)\]\s*$/);
+      if (refMatch) {
+        refMatch[1].split(',').map(r => r.trim()).filter(Boolean).forEach(r => refs.push(r));
+        return line.slice(0, line.lastIndexOf(refMatch[0])).trim();
+      }
+      return line;
+    });
+    return { lines: cleanLines, refs };
   };
 
   /* ── Build a single rule row HTML ── */
   const _buildRuleHtml = (item, idx, sectionIdx, color, checked) => {
-    const { text, refs } = _parseLabel(item.label);
+    const { lines, refs } = _parseLabel(item.label);
+
+    // First line is the "title" line; rest are sub-lines
+    const [titleLine, ...subLines] = lines;
+
     const refPills = refs.map(r =>
       `<span class="cl-ref-pill">${r}</span>`
+    ).join('');
+
+    const subHtml = subLines.filter(l => l.trim()).map(l =>
+      `<span class="cl-dash-rule-subline">${_escHtml(l)}</span>`
     ).join('');
 
     return `
       <label class="cl-dash-rule${checked ? ' cl-dash-rule-checked' : ''}"
              onclick="Checklist.toggle(${item.id}, ${sectionIdx})"
-             style="${checked ? `--rule-color:${color}` : `--rule-color:${color}`}">
+             style="--rule-color:${color}">
         <!-- Custom checkbox -->
         <span class="cl-dash-checkbox${checked ? ' cl-dash-checkbox-on' : ''}"
               style="${checked ? `border-color:${color};background:${color}` : `border-color:rgba(${_hexToRgb(color)},0.35)`}">
           ${checked ? '<i class="fas fa-check" style="font-size:9px;color:#0a0f1e;"></i>' : ''}
         </span>
-        <!-- Rule number -->
-        <span class="cl-dash-rule-num" style="color:${checked ? color : 'var(--tx-faint)'}">
-          ${String(idx + 1).padStart(2, '0')}
-        </span>
-        <!-- Rule text -->
-        <span class="cl-dash-rule-text${checked ? ' cl-dash-rule-text-done' : ''}">
-          ${_escHtml(text)}
-          ${refPills ? `<span class="cl-ref-pills">${refPills}</span>` : ''}
+        <!-- Rule text block -->
+        <span class="cl-dash-rule-body">
+          <span class="cl-dash-rule-text${checked ? ' cl-dash-rule-text-done' : ''}">
+            ${_escHtml(titleLine)}
+            ${refs.length ? `<span class="cl-ref-pills">${refPills}</span>` : ''}
+          </span>
+          ${subHtml ? `<span class="cl-dash-rule-subs">${subHtml}</span>` : ''}
         </span>
         <!-- Status badge -->
         <span class="cl-dash-status-badge${checked ? ' cl-dash-status-valid' : ''}"
