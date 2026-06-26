@@ -784,7 +784,126 @@ const TradeList = (() => {
     if (_page < totalPages) { _page++; render(); }
   };
 
-  return { switchTab, load, applyFilters, clearFilters, editTrade, deleteTrade, prevPage, nextPage };
+  /* ── Export: CSV / Excel ── */
+  const exportCSV = () => {
+    const trades = _filtered.length > 0 ? _filtered : _allTrades;
+    if (!trades.length) { Toast.show('No trades to export.', 'warn'); return; }
+
+    const headers = ['Date','Type','Pair','Outcome','RR','Notes','Screenshot URL','Sync Status'];
+    const rows = trades.map(t => [
+      t.date,
+      t.type,
+      t.pair,
+      t.outcome,
+      t.rr != null ? `1:${t.rr}` : '',
+      (t.notes || '').replace(/"/g,'""'),
+      t.screenshotUrl || '',
+      t.syncStatus || '',
+    ].map(v => `"${v}"`).join(','));
+
+    const csv = [headers.map(h=>`"${h}"`).join(','), ...rows].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `FX-Journal-${_activeTab}-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+    Toast.show(`Exported ${trades.length} trades to CSV.`, 'success');
+  };
+
+  /* ── Export: PDF ── */
+  const exportPDF = () => {
+    const trades = _filtered.length > 0 ? _filtered : _allTrades;
+    if (!trades.length) { Toast.show('No trades to export.', 'warn'); return; }
+
+    const wins   = trades.filter(t => t.outcome === 'win').length;
+    const losses = trades.filter(t => t.outcome === 'loss').length;
+    const wr     = Math.round((wins / trades.length) * 100);
+    const netRR  = trades.reduce((s,t) => {
+      const r = parseFloat(t.rr) || 1;
+      return s + (t.outcome === 'win' ? r : -r);
+    }, 0);
+    const tabLabel = _activeTab === 'backtest' ? 'Backtest' : 'Live Trades';
+    const dateNow  = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+    const rowsHtml = trades.map((t,i) => {
+      const isWin = t.outcome === 'win';
+      const clr   = isWin ? '#16a34a' : '#dc2626';
+      const bg    = i % 2 === 0 ? '#0f172a' : '#1e293b';
+      return `<tr style="background:${bg}">
+        <td style="padding:7px 10px;color:#94a3b8;font-size:11px">${t.date}</td>
+        <td style="padding:7px 10px;color:#f1f5f9;font-size:12px;font-weight:600">${t.pair}</td>
+        <td style="padding:7px 10px"><span style="background:${isWin?'rgba(34,197,94,.15)':'rgba(239,68,68,.15)'};color:${clr};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">${isWin?'WIN':'LOSS'}</span></td>
+        <td style="padding:7px 10px;color:#f1f5f9;font-size:12px;font-family:monospace">${t.rr!=null?'1:'+t.rr:'—'}</td>
+        <td style="padding:7px 10px;color:#94a3b8;font-size:11px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(t.notes||'').slice(0,60)}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>FX Journal — ${tabLabel} Export</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family:'Inter',sans-serif; background:#0a0f1e; color:#f1f5f9; padding:32px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; padding-bottom:20px; border-bottom:1px solid rgba(51,65,85,.6); }
+  .hdr-logo { display:flex; align-items:center; gap:12px; }
+  .hdr-icon { width:40px; height:40px; border-radius:10px; background:rgba(34,211,238,.12); display:flex; align-items:center; justify-content:center; color:#22d3ee; font-size:18px; }
+  .hdr-title { font-size:20px; font-weight:700; color:#f1f5f9; }
+  .hdr-sub { font-size:12px; color:#64748b; margin-top:2px; }
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+  .stat-card { background:#0f172a; border:1px solid rgba(51,65,85,.5); border-radius:12px; padding:14px 16px; }
+  .stat-val { font-size:22px; font-weight:700; font-family:monospace; }
+  .stat-lbl { font-size:11px; color:#64748b; margin-top:3px; }
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#1e293b; }
+  thead th { padding:9px 10px; text-align:left; font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+  .footer { margin-top:24px; text-align:center; color:#334155; font-size:11px; }
+  @media print { body { padding:16px; } }
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <div class="hdr-logo">
+      <div class="hdr-icon">📈</div>
+      <div>
+        <p class="hdr-title">FX Journal — ${tabLabel}</p>
+        <p class="hdr-sub">Exported on ${dateNow}</p>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <p style="font-size:13px;color:#94a3b8">${trades.length} trades</p>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><p class="stat-val" style="color:#22d3ee">${trades.length}</p><p class="stat-lbl">Total Trades</p></div>
+    <div class="stat-card"><p class="stat-val" style="color:#22c55e">${wins}</p><p class="stat-lbl">Wins</p></div>
+    <div class="stat-card"><p class="stat-val" style="color:#ef4444">${losses}</p><p class="stat-lbl">Losses</p></div>
+    <div class="stat-card"><p class="stat-val" style="color:#f59e0b">${wr}%</p><p class="stat-lbl">Win Rate</p></div>
+  </div>
+  <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;padding:10px 14px;background:#0f172a;border:1px solid rgba(51,65,85,.5);border-radius:10px">
+    <span style="font-size:12px;color:#64748b">Net RR</span>
+    <span style="font-size:15px;font-weight:700;font-family:monospace;margin-left:auto;color:${netRR>=0?'#22c55e':'#ef4444'}">${netRR>=0?'+':''}${netRR.toFixed(2)}R</span>
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th>Pair</th><th>Outcome</th><th>RR</th><th>Notes</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <p class="footer">FX Journal PWA — Offline-first Forex Trading Log</p>
+  <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (w) { w.document.write(html); w.document.close(); }
+    else Toast.show('Pop-up blocked — allow pop-ups and try again.', 'warn');
+  };
+
+  return { switchTab, load, applyFilters, clearFilters, editTrade, deleteTrade, prevPage, nextPage, exportCSV, exportPDF };
 })();
 
 /* ─────────────────────────────────────────────
@@ -1754,233 +1873,154 @@ const Settings = (() => {
 })();
 
 /* ─────────────────────────────────────────────
-   ⑫ CHECKLIST MODULE — Premium 4-Section Dashboard
+   ⑫ CHECKLIST MODULE — Premium Infographic Layout
    ─────────────────────────────────────────────
-   Replaces the 3-page wizard with a full-screen
-   dashboard showing all 4 sections simultaneously
-   in a responsive grid layout. Each section maps
-   to a DB timeframe bucket (HTF, MTF, LTF, LTF+).
+   Hardcoded 4-step SMC/ICT rules with section-
+   aware toggle state. Each row is rendered in
+   the HTML; JS manages checked state + progress.
    ───────────────────────────────────────────── */
 const Checklist = (() => {
-  // The 4 dashboard sections. LTF+ maps to a 4th
-  // DB timeframe called 'LTF+'.
-  const SECTIONS = [
-    { tf: 'HTF',  color: '#22d3ee', sectionId: 0 },
-    { tf: 'MTF',  color: '#a78bfa', sectionId: 1 },
-    { tf: 'LTF',  color: '#22c55e', sectionId: 2 },
-    { tf: 'LTF+', color: '#f59e0b', sectionId: 3 },
-  ];
+  // Hardcoded rule counts per section (matches HTML)
+  const SECTION_COUNTS = [5, 4, 5, 4];  // [HTF, MTF, LTF, LTF+]
+  const TOTAL_RULES    = SECTION_COUNTS.reduce((a,b) => a + b, 0); // 18
+  const SECTION_COLORS = ['#ef4444','#f97316','#06b6d4','#22c55e'];
 
-  // Keep legacy TIMEFRAMES array for save/summary compat
-  const TIMEFRAMES = SECTIONS.map(s => s.tf);
-
-  let _items   = {};   // { HTF:[], MTF:[], LTF:[], 'LTF+':[] }
-  let _checked = {};   // { [itemId]: bool }
+  let _state = {}; // "s-r" → bool, e.g. "0-2" = section 0 rule 2
   let _tradeId = null;
   let _date    = null;
 
   /* ── Helpers ── */
-  const _escHtml = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _key = (s,r) => `${s}-${r}`;
 
-  const _totalChecks = () =>
-    TIMEFRAMES.reduce((s, t) => s + (_items[t]||[]).filter(i => _checked[i.id]).length, 0);
-  const _totalItems = () =>
-    TIMEFRAMES.reduce((s, t) => s + (_items[t]||[]).length, 0);
-
-  /* ── Parse reference tags like [22, 111] from label text ── */
-  const _parseLabel = (rawLabel) => {
-    // For multi-line labels: split on \n, collect ref tags from ALL lines
-    const lines = rawLabel.split('\n');
-    const refs = [];
-    const cleanLines = lines.map(line => {
-      const refMatch = line.match(/\[([0-9,\s]+)\]\s*$/);
-      if (refMatch) {
-        refMatch[1].split(',').map(r => r.trim()).filter(Boolean).forEach(r => refs.push(r));
-        return line.slice(0, line.lastIndexOf(refMatch[0])).trim();
-      }
-      return line;
-    });
-    return { lines: cleanLines, refs };
+  const _totalChecked = () => {
+    let n = 0;
+    for (let s = 0; s < 4; s++)
+      for (let r = 0; r < SECTION_COUNTS[s]; r++)
+        if (_state[_key(s,r)]) n++;
+    return n;
   };
 
-  /* ── Build a single rule row HTML ── */
-  const _buildRuleHtml = (item, idx, sectionIdx, color, checked) => {
-    const { lines, refs } = _parseLabel(item.label);
+  /* ── Update a single rule's visual state ── */
+  const _applyRuleState = (s, r, checked) => {
+    const el  = document.getElementById(`clHardRule${s}-${r}`);
+    if (!el) return;
+    const clr = SECTION_COLORS[s];
 
-    // First line is the "title" line; rest are sub-lines
-    const [titleLine, ...subLines] = lines;
+    el.dataset.checked = checked ? 'true' : 'false';
 
-    const refPills = refs.map(r =>
-      `<span class="cl-ref-pill">${r}</span>`
-    ).join('');
+    const chk    = el.querySelector('.cl-rule-check');
+    const txt    = el.querySelector('.cl-rule-text');
+    const status = el.querySelector('.cl-rule-status');
 
-    const subHtml = subLines.filter(l => l.trim()).map(l =>
-      `<span class="cl-dash-rule-subline">${_escHtml(l)}</span>`
-    ).join('');
-
-    return `
-      <label class="cl-dash-rule${checked ? ' cl-dash-rule-checked' : ''}"
-             onclick="Checklist.toggle(${item.id}, ${sectionIdx})"
-             style="--rule-color:${color}">
-        <!-- Custom checkbox -->
-        <span class="cl-dash-checkbox${checked ? ' cl-dash-checkbox-on' : ''}"
-              style="${checked ? `border-color:${color};background:${color}` : `border-color:rgba(${_hexToRgb(color)},0.35)`}">
-          ${checked ? '<i class="fas fa-check" style="font-size:9px;color:#0a0f1e;"></i>' : ''}
-        </span>
-        <!-- Rule text block -->
-        <span class="cl-dash-rule-body">
-          <span class="cl-dash-rule-text${checked ? ' cl-dash-rule-text-done' : ''}">
-            ${_escHtml(titleLine)}
-            ${refs.length ? `<span class="cl-ref-pills">${refPills}</span>` : ''}
-          </span>
-          ${subHtml ? `<span class="cl-dash-rule-subs">${subHtml}</span>` : ''}
-        </span>
-        <!-- Status badge -->
-        <span class="cl-dash-status-badge${checked ? ' cl-dash-status-valid' : ''}"
-              style="${checked ? `background:${color}1a;color:${color};border-color:${color}33` : ''}">
-          ${checked
-            ? '<i class="fas fa-circle-check" style="font-size:9px;"></i> Valid'
-            : '<i class="fas fa-clock" style="font-size:9px;"></i> Pending'}
-        </span>
-      </label>`;
-  };
-
-  /* ── Convert #rrggbb → "r,g,b" for rgba() ── */
-  const _hexToRgb = (hex) => {
-    const r = parseInt(hex.slice(1,3),16);
-    const g = parseInt(hex.slice(3,5),16);
-    const b = parseInt(hex.slice(5,7),16);
-    return `${r},${g},${b}`;
-  };
-
-  /* ── Render one section's item list ── */
-  const _renderSection = (sec) => {
-    const { tf, color, sectionId } = sec;
-    const items   = _items[tf] || [];
-    const listEl  = document.getElementById(`clItems${sectionId}`);
-    if (!listEl) return;
-
-    if (items.length === 0) {
-      listEl.innerHTML = `
-        <div class="cl-empty-tf" style="padding:24px 0">
-          <i class="fas fa-list-check" style="color:${color};opacity:0.35;font-size:22px;margin-bottom:8px;display:block"></i>
-          <p style="color:var(--tx-faint);font-size:12px;">No rules for ${tf} yet.</p>
-          <button onclick="ChecklistAdmin.open()" class="cl-link-btn" style="margin-top:8px">
-            <i class="fas fa-gear mr-1"></i>Open Admin to add rules
-          </button>
-        </div>`;
+    if (checked) {
+      el.classList.add('cl-rule-checked');
+      if (chk)    { chk.style.borderColor = clr; chk.style.background = clr; chk.innerHTML = '<i class="fas fa-check" style="font-size:9px;color:#0a0f1e"></i>'; }
+      if (txt)    txt.style.opacity = '0.45';
+      if (status) { status.className = 'cl-rule-status cl-rule-validated'; status.style.cssText = `background:${clr}1a;color:${clr};border-color:${clr}33`; status.innerHTML = '<i class="fas fa-circle-check" style="font-size:9px"></i> VALIDATED'; }
     } else {
-      listEl.innerHTML = items.map((item, idx) =>
-        _buildRuleHtml(item, idx, sectionId, color, !!_checked[item.id])
-      ).join('');
+      el.classList.remove('cl-rule-checked');
+      if (chk)    { chk.style.borderColor = `${clr}55`; chk.style.background = ''; chk.innerHTML = ''; }
+      if (txt)    txt.style.opacity = '';
+      if (status) { status.className = 'cl-rule-status'; status.style.cssText = ''; status.innerHTML = '<i class="fas fa-clock" style="font-size:9px"></i> PENDING'; }
     }
+  };
 
-    // Update per-section counter
-    const done  = items.filter(i => _checked[i.id]).length;
-    const total = items.length;
-    const doneEl  = document.getElementById(`clSecDone${sectionId}`);
-    const totalEl = document.getElementById(`clSecTotal${sectionId}`);
+  /* ── Update section counter + glow ── */
+  const _updateSectionCounter = (s) => {
+    const done  = Array.from({length: SECTION_COUNTS[s]}, (_,r) => _state[_key(s,r)] ? 1 : 0).reduce((a,b)=>a+b,0);
+    const total = SECTION_COUNTS[s];
+    const clr   = SECTION_COLORS[s];
+
+    const doneEl  = document.getElementById(`clSecDone${s}`);
+    const totalEl = document.getElementById(`clSecTotal${s}`);
+    const ctrEl   = document.getElementById(`clSecCounter${s}`);
+    const secEl   = document.getElementById(`clDashSection${s}`);
+
     if (doneEl)  doneEl.textContent  = done;
     if (totalEl) totalEl.textContent = total;
-
-    // Color-code counter when fully done
-    const counterEl = document.getElementById(`clSecCounter${sectionId}`);
-    if (counterEl) {
-      counterEl.style.color       = done === total && total > 0 ? color : 'var(--tx-muted)';
-      counterEl.style.borderColor = done === total && total > 0 ? `${color}44` : 'var(--bd-faint)';
+    if (ctrEl) {
+      const complete = done === total && total > 0;
+      ctrEl.style.color       = complete ? clr : '';
+      ctrEl.style.borderColor = complete ? `${clr}44` : '';
     }
-
-    // Tint the section card when fully complete
-    const sectionEl = document.getElementById(`clDashSection${sectionId}`);
-    if (sectionEl) {
-      if (done === total && total > 0) {
-        sectionEl.style.boxShadow = `0 0 0 1.5px ${color}40, 0 4px 24px rgba(0,0,0,0.35)`;
-      } else {
-        sectionEl.style.boxShadow = '';
-      }
+    if (secEl) {
+      const complete = done === total && total > 0;
+      secEl.style.boxShadow = complete ? `0 0 0 1.5px ${clr}40, 0 8px 32px rgba(0,0,0,0.35)` : '';
     }
   };
 
-  /* ── Build all 4 sections ── */
-  const _buildAllSections = () => {
-    SECTIONS.forEach(sec => _renderSection(sec));
+  /* ── Update global progress ── */
+  const _updateProgress = () => {
+    const done = _totalChecked();
+    const pct  = Math.round((done / TOTAL_RULES) * 100);
+
+    const bar = document.getElementById('clProgressBar');
+    if (bar) bar.style.width = pct + '%';
+
+    const pill = document.getElementById('clDashProgressText');
+    if (pill) pill.textContent = `${done} / ${TOTAL_RULES} Rules`;
+
+    ['', '1', '2'].forEach(sfx => {
+      const d = document.getElementById(`clProgressDone${sfx}`);
+      const p = document.getElementById(`clProgressPct${sfx}`);
+      if (d) d.textContent = `${done}/${TOTAL_RULES} checked`;
+      if (p) p.textContent = `${pct}%`;
+    });
   };
 
-  /* ── Open ── */
+  /* ── Public: toggle a hardcoded rule ── */
+  const toggleHard = (sectionIdx, ruleIdx) => {
+    const k = _key(sectionIdx, ruleIdx);
+    _state[k] = !_state[k];
+    _applyRuleState(sectionIdx, ruleIdx, _state[k]);
+    _updateSectionCounter(sectionIdx);
+    _updateProgress();
+  };
+
+  /* ── Public: Open ── */
   const open = async (tradeId = null, dateStr = null) => {
-    _checked = {};
     _tradeId = tradeId;
     _date    = dateStr || new Date().toISOString().slice(0, 10);
+    _state   = {};
 
-    for (const sec of SECTIONS) {
-      _items[sec.tf] = await DB.getChecklistItems(sec.tf);
-    }
+    // Restore saved session if available
     if (tradeId) {
       const session = await DB.getChecklistSessionByTrade(tradeId);
-      if (session) _checked = session.checks || {};
+      if (session?.hardState) _state = session.hardState;
     }
 
-    _buildAllSections();
+    // Apply visual state to all rules
+    for (let s = 0; s < 4; s++) {
+      for (let r = 0; r < SECTION_COUNTS[s]; r++) {
+        _applyRuleState(s, r, !!_state[_key(s,r)]);
+      }
+      _updateSectionCounter(s);
+    }
     _updateProgress();
 
     document.getElementById('checklistModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    // Scroll dashboard body to top on open
-    const body = document.querySelector('.cl-dash-body');
+    const body = document.querySelector('.cl-infog-body');
     if (body) body.scrollTop = 0;
   };
 
-  /* ── Close ── */
+  /* ── Public: Close ── */
   const close = () => {
     document.getElementById('checklistModal').classList.add('hidden');
     document.body.style.overflow = '';
   };
 
-  /* ── Toggle a single rule ── */
-  const toggle = (itemId, sectionIndex) => {
-    _checked[itemId] = !_checked[itemId];
-    // Re-render just the affected section
-    _renderSection(SECTIONS[sectionIndex]);
-    _updateProgress();
-  };
-
-  /* ── Update global progress bar + header counter ── */
-  const _updateProgress = () => {
-    const done  = _totalChecks();
-    const total = _totalItems();
-    const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
-
-    const bar = document.getElementById('clProgressBar');
-    if (bar) bar.style.width = pct + '%';
-
-    // Header pill
-    const pillText = document.getElementById('clDashProgressText');
-    if (pillText) pillText.textContent = `${done} / ${total} Rules`;
-
-    // Footer labels (also keeps legacy IDs alive)
-    ['', '1', '2'].forEach(sfx => {
-      const dEl = document.getElementById(`clProgressDone${sfx}`);
-      const pEl = document.getElementById(`clProgressPct${sfx}`);
-      if (dEl) dEl.textContent = `${done}/${total} checked`;
-      if (pEl) pEl.textContent = `${pct}%`;
-    });
-  };
-
-  /* ── Public: Save session (called from footer button) ── */
+  /* ── Public: Save session ── */
   const saveSession = async () => {
     try {
+      const done = _totalChecked();
       const session = {
-        tradeId: _tradeId,
-        date:    _date,
-        checks:  _checked,
-        savedAt: new Date().toISOString(),
-        summary: TIMEFRAMES.reduce((acc, tf) => {
-          acc[tf] = {
-            total: (_items[tf]||[]).length,
-            done:  (_items[tf]||[]).filter(i => _checked[i.id]).length,
-          };
-          return acc;
-        }, {}),
+        tradeId:   _tradeId,
+        date:      _date,
+        checks:    _state,          // legacy compat field
+        hardState: _state,          // new field for infographic state
+        savedAt:   new Date().toISOString(),
+        summary:   { total: TOTAL_RULES, done },
       };
       await DB.saveChecklistSession(session);
       Toast.show('Checklist saved ✓', 'success');
@@ -1991,20 +2031,25 @@ const Checklist = (() => {
     }
   };
 
-  /* ── Public: Reset all checks ── */
+  /* ── Public: Reset all ── */
   const resetAll = () => {
-    _checked = {};
-    _buildAllSections();
+    _state = {};
+    for (let s = 0; s < 4; s++) {
+      for (let r = 0; r < SECTION_COUNTS[s]; r++) {
+        _applyRuleState(s, r, false);
+      }
+      _updateSectionCounter(s);
+    }
     _updateProgress();
     Toast.show('Checklist reset.', 'info');
   };
 
-  /* ── Legacy stubs (kept so keyboard handler & other code still works) ── */
-  const toggle_legacy = toggle; // already exported as toggle
-  const prev = () => {};        // no-op — single-page dashboard
-  const next = async () => { await saveSession(); };
+  /* ── Legacy stubs for keyboard/compat ── */
+  const toggle = (itemId, sectionIndex) => {};  // no-op — not used in infographic mode
+  const prev   = () => {};
+  const next   = async () => { await saveSession(); };
 
-  return { open, close, toggle, prev, next, saveSession, resetAll };
+  return { open, close, toggle, toggleHard, prev, next, saveSession, resetAll };
 })();
 
 /* ─────────────────────────────────────────────
