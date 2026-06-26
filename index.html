@@ -398,6 +398,17 @@
             <i class="fas fa-table-list text-brand text-sm"></i>
             <h2 class="text-sm font-semibold text-slate-200">Trade Log</h2>
           </div>
+          <!-- Export Buttons -->
+          <div class="flex items-center gap-2">
+            <button onclick="TradeList.exportCSV()" class="export-btn export-btn-csv" title="Export to CSV / Excel">
+              <i class="fas fa-file-csv"></i>
+              <span class="export-btn-label">CSV</span>
+            </button>
+            <button onclick="TradeList.exportPDF()" class="export-btn export-btn-pdf" title="Export to PDF">
+              <i class="fas fa-file-pdf"></i>
+              <span class="export-btn-label">PDF</span>
+            </button>
+          </div>
         </div>
 
         <!-- Filters -->
@@ -580,145 +591,348 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       CHECKLIST DASHBOARD — FULL SCREEN PREMIUM
+       CHECKLIST — PREMIUM INFOGRAPHIC FULL-SCREEN
        SMC/ICT Mechanical Execution System
+       4-Step Sequential Protocol
   ═══════════════════════════════════════════ -->
-  <div id="checklistModal" class="cl-fullscreen hidden" role="dialog" aria-modal="true" aria-label="Trade Checklist">
+  <div id="checklistModal" class="cl-infographic hidden" role="dialog" aria-modal="true" aria-label="Trade Checklist">
 
-    <!-- ── Fixed Header ── -->
-    <div class="cl-dash-header">
-      <div class="cl-dash-header-inner">
+    <!-- ══ FIXED TOP BANNER HEADER ══ -->
+    <div class="cl-infog-header" id="clInfogHeader">
+      <div class="cl-infog-header-inner">
 
         <!-- Back Button -->
-        <button onclick="Checklist.close()" class="cl-dash-back-btn" aria-label="Close checklist">
-          <i class="fas fa-arrow-left mr-2"></i>
-          <span class="cl-dash-back-label">Back to Journal</span>
+        <button onclick="Checklist.close()" class="cl-infog-back-btn" aria-label="Back to Journal">
+          <i class="fas fa-arrow-left"></i>
+          <span>Back to Journal</span>
         </button>
 
-        <!-- Title Block (centered) -->
-        <div class="cl-dash-title-block">
-          <div class="cl-dash-title">SMC/ICT Mechanical Execution System</div>
-          <div class="cl-dash-subtitle">Pre-Trade Verification Protocol</div>
+        <!-- Centre: Title + progress pill -->
+        <div class="cl-infog-title-wrap">
+          <p class="cl-infog-sys-label">SMC / ICT MECHANICAL EXECUTION SYSTEM</p>
+          <p class="cl-infog-sys-sub">Pre-Trade Verification Protocol &mdash; 4-Step Sequential Analysis</p>
         </div>
 
-        <!-- Progress Counter -->
-        <div class="cl-dash-progress-pill">
-          <i class="fas fa-list-check cl-dash-progress-icon"></i>
-          <span id="clDashProgressText" class="cl-dash-progress-text">0 / 0 Rules</span>
+        <!-- Right: progress + reset -->
+        <div class="cl-infog-hdr-right">
+          <div class="cl-infog-prog-pill">
+            <i class="fas fa-list-check" style="font-size:11px;opacity:.7"></i>
+            <span id="clDashProgressText">0 / 18 Rules</span>
+          </div>
+          <button onclick="Checklist.resetAll()" class="cl-infog-reset-btn" title="Reset all checks">
+            <i class="fas fa-rotate-left"></i>
+            <span class="cl-infog-reset-label">Reset</span>
+          </button>
         </div>
 
       </div>
-
-      <!-- Thin rainbow progress bar -->
-      <div class="cl-fs-prog-bar-wrap">
-        <div id="clProgressBar" class="cl-fs-prog-bar-fill" style="width:0%"></div>
+      <!-- Gradient progress bar -->
+      <div class="cl-infog-prog-track">
+        <div id="clProgressBar" class="cl-infog-prog-fill" style="width:0%"></div>
       </div>
     </div>
 
-    <!-- ── Scrollable Dashboard Body ── -->
-    <div class="cl-dash-body">
-      <div class="cl-dash-grid">
+    <!-- ══ SCROLLABLE BODY ══ -->
+    <div class="cl-infog-body">
 
-        <!-- ── SECTION 1: HTF — Weekly/1W ── -->
-        <div class="cl-dash-section" id="clDashSection0">
-          <!-- Section header -->
-          <div class="cl-dash-section-header" style="--sec-color:#22d3ee;--sec-bg:rgba(34,211,238,0.08);--sec-bd:rgba(34,211,238,0.2)">
-            <div class="cl-dash-sec-badge">
-              <i class="fas fa-chart-line"></i>
+      <!-- ╔══════════════════════════════════════╗
+           ║  STEP 01 — HTF Weekly/1W  (Red)      ║
+           ╚══════════════════════════════════════╝ -->
+      <div class="cl-step-section" id="clDashSection0" data-step="01" data-color="#ef4444">
+        <div class="cl-step-layout">
+
+          <!-- Left: Step Badge -->
+          <div class="cl-step-badge-col">
+            <div class="cl-step-badge" style="--step-clr:#ef4444;--step-bg:rgba(239,68,68,0.12);">
+              <span class="cl-step-word">STEP</span>
+              <span class="cl-step-num">01</span>
             </div>
-            <div class="cl-dash-sec-meta">
-              <div class="cl-dash-sec-tf">HTF</div>
-              <div class="cl-dash-sec-title">Weekly / 1W</div>
-              <div class="cl-dash-sec-amh">የታሪክ ግንባታ — Narrative Creation</div>
+            <div class="cl-step-vline" style="background:linear-gradient(to bottom,#ef444480,transparent)"></div>
+          </div>
+
+          <!-- Right: Content -->
+          <div class="cl-step-content">
+            <div class="cl-step-head" style="--step-clr:#ef4444">
+              <div class="cl-step-tf-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3)">HTF</div>
+              <div class="cl-step-titles">
+                <h3 class="cl-step-title" style="color:#ef4444">Weekly / 1W &mdash; HTF Analysis</h3>
+                <p class="cl-step-amh">የታሪክ ግንባታ &mdash; Narrative Creation</p>
+              </div>
+              <div class="cl-step-sec-counter" id="clSecCounter0">
+                <span id="clSecDone0">0</span>/<span id="clSecTotal0">5</span>
+              </div>
             </div>
-            <div class="cl-dash-sec-counter" id="clSecCounter0">
-              <span id="clSecDone0">0</span>/<span id="clSecTotal0">0</span>
+            <div class="cl-step-rules" id="clItems0">
+              <!-- Hardcoded HTF rules -->
+              <label class="cl-rule-row" id="clHardRule0-0" onclick="Checklist.toggleHard(0,0)" data-checked="false" style="--rc:#ef4444">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የአሁኑን የዋጋ ጉዞ (Current Leg) ለይ፦ ዋጋው በከፍተኛ ግስጋሴ (Impulsive) ወይስ በትረማስ (Corrective) ላይ ነው?</span>
+                </span>
+                <span class="cl-rule-ref-badge">[1]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule0-1" onclick="Checklist.toggleHard(0,1)" data-checked="false" style="--rc:#ef4444">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">መዋቅራዊ አቅጣጫን ለይ፦ ገበያው HH/HL (Bullish) ወይስ LL/LH (Bearish) እየሠራ ነው?</span>
+                </span>
+                <span class="cl-rule-ref-badge">[22, 111]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule0-2" onclick="Checklist.toggleHard(0,2)" data-checked="false" style="--rc:#ef4444">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የሳምንቱን የዋጋ ክልል (Range) አውጣ፦ ዋጋው በዚህ ሳምንት ሊንቀሳቀስ የሚችልበትን ከፍተኛ እና ዝቅተኛ ነጥብ ምልክት አድርግ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[112, 141]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule0-3" onclick="Checklist.toggleHard(0,3)" data-checked="false" style="--rc:#ef4444">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">ወደ ግራ ተመልከት (Look Left)፦ ግልጽ ያልተነኩ ቀጠናዎችን (Untapped POIs)፣ ሊኩዊዲቲ (EQH/EQL) እና ክፍተቶችን (Gaps/Inefficiency) ፈልግ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[22, 113]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule0-4" onclick="Checklist.toggleHard(0,4)" data-checked="false" style="--rc:#ef4444">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የሳምንቱን አቅጣጫ (Bias) ወስን፦ ዋጋው ወደ የትኛው ሊኩዊዲቲ ወይም ቀጠና እንደ ማግኔት ይሳባል?</span>
+                </span>
+                <span class="cl-rule-ref-badge">[23, 116]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
             </div>
           </div>
-          <!-- Items -->
-          <div class="cl-dash-items" id="clItems0"></div>
         </div>
+      </div>
 
-        <!-- ── SECTION 2: MTF — 1D, 4H ── -->
-        <div class="cl-dash-section" id="clDashSection1">
-          <div class="cl-dash-section-header" style="--sec-color:#a78bfa;--sec-bg:rgba(167,139,250,0.08);--sec-bd:rgba(167,139,250,0.2)">
-            <div class="cl-dash-sec-badge">
-              <i class="fas fa-chart-bar"></i>
+      <!-- ╔══════════════════════════════════════╗
+           ║  STEP 02 — MTF 1D/4H  (Orange)      ║
+           ╚══════════════════════════════════════╝ -->
+      <div class="cl-step-section" id="clDashSection1" data-step="02" data-color="#f97316">
+        <div class="cl-step-layout">
+          <div class="cl-step-badge-col">
+            <div class="cl-step-badge" style="--step-clr:#f97316;--step-bg:rgba(249,115,22,0.12);">
+              <span class="cl-step-word">STEP</span>
+              <span class="cl-step-num">02</span>
             </div>
-            <div class="cl-dash-sec-meta">
-              <div class="cl-dash-sec-tf">MTF</div>
-              <div class="cl-dash-sec-title">Daily / 4H — 1D, 4H</div>
-              <div class="cl-dash-sec-amh">ትንተናን ማጥራት — Narrative Refinement</div>
+            <div class="cl-step-vline" style="background:linear-gradient(to bottom,#f9731680,transparent)"></div>
+          </div>
+          <div class="cl-step-content">
+            <div class="cl-step-head" style="--step-clr:#f97316">
+              <div class="cl-step-tf-badge" style="background:rgba(249,115,22,0.15);color:#f97316;border-color:rgba(249,115,22,0.3)">MTF</div>
+              <div class="cl-step-titles">
+                <h3 class="cl-step-title" style="color:#f97316">1D &amp; 4H &mdash; MTF Analysis</h3>
+                <p class="cl-step-amh">ትንተናን ማጥራት &mdash; Narrative Refinement</p>
+              </div>
+              <div class="cl-step-sec-counter" id="clSecCounter1">
+                <span id="clSecDone1">0</span>/<span id="clSecTotal1">4</span>
+              </div>
             </div>
-            <div class="cl-dash-sec-counter" id="clSecCounter1">
-              <span id="clSecDone1">0</span>/<span id="clSecTotal1">0</span>
+            <div class="cl-step-rules" id="clItems1">
+              <label class="cl-rule-row" id="clHardRule1-0" onclick="Checklist.toggleHard(1,0)" data-checked="false" style="--rc:#f97316">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የ HTF ታሪክን አረጋግጥ፦ በትልቁ ያየኸው አቅጣጫ አሁንም አልተቀየረም?</span>
+                </span>
+                <span class="cl-rule-ref-badge">[2]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule1-1" onclick="Checklist.toggleHard(1,1)" data-checked="false" style="--rc:#f97316">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">ቀጠናዎችን አጥራ (Refine POIs)፦ የሳምንቱን ትላልቅ ቀጠናዎች ወደ ዕለታዊ ወይም የ 4 ሰዓት ጥቃቅን ቀጠናዎች ቀይር</span>
+                </span>
+                <span class="cl-rule-ref-badge">[28, 117]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule1-2" onclick="Checklist.toggleHard(1,2)" data-checked="false" style="--rc:#f97316">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የመንገዱን ግልጽነት አረጋግጥ፦ ዋጋው ከቀጠናው ተነስቶ እስከ ግቡ (Target) ድረስ የሚገታው ሌላ ቀጠና የለም?</span>
+                </span>
+                <span class="cl-rule-ref-badge">[3]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule1-3" onclick="Checklist.toggleHard(1,3)" data-checked="false" style="--rc:#f97316">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">እቅድህን በዝርዝር አስቀምጥ፦ "ዋጋው ይህን POI ቢነካ እና LTF BOS ቢሰጠኝ፣ እገዛለሁ" የሚል የ "If This Then That" እቅድ ይኑርህ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[29, 104]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
             </div>
           </div>
-          <div class="cl-dash-items" id="clItems1"></div>
         </div>
+      </div>
 
-        <!-- ── SECTION 3: LTF — 1H to 1m ── -->
-        <div class="cl-dash-section" id="clDashSection2">
-          <div class="cl-dash-section-header" style="--sec-color:#22c55e;--sec-bg:rgba(34,197,94,0.08);--sec-bd:rgba(34,197,94,0.2)">
-            <div class="cl-dash-sec-badge">
-              <i class="fas fa-chart-simple"></i>
+      <!-- ╔══════════════════════════════════════╗
+           ║  STEP 03 — LTF 1H→1m  (Blue/Teal)   ║
+           ╚══════════════════════════════════════╝ -->
+      <div class="cl-step-section" id="clDashSection2" data-step="03" data-color="#06b6d4">
+        <div class="cl-step-layout">
+          <div class="cl-step-badge-col">
+            <div class="cl-step-badge" style="--step-clr:#06b6d4;--step-bg:rgba(6,182,212,0.12);">
+              <span class="cl-step-word">STEP</span>
+              <span class="cl-step-num">03</span>
             </div>
-            <div class="cl-dash-sec-meta">
-              <div class="cl-dash-sec-tf">LTF</div>
-              <div class="cl-dash-sec-title">1H → 15m → 1m</div>
-              <div class="cl-dash-sec-amh">የንግድ አፈጻጸም — Narrative Trading</div>
+            <div class="cl-step-vline" style="background:linear-gradient(to bottom,#06b6d480,transparent)"></div>
+          </div>
+          <div class="cl-step-content">
+            <div class="cl-step-head" style="--step-clr:#06b6d4">
+              <div class="cl-step-tf-badge" style="background:rgba(6,182,212,0.15);color:#06b6d4;border-color:rgba(6,182,212,0.3)">LTF</div>
+              <div class="cl-step-titles">
+                <h3 class="cl-step-title" style="color:#06b6d4">1H &rarr; 15m &rarr; 1m &mdash; LTF Execution</h3>
+                <p class="cl-step-amh">የንግድ አፈጻጸም &mdash; Narrative Trading</p>
+              </div>
+              <div class="cl-step-sec-counter" id="clSecCounter2">
+                <span id="clSecDone2">0</span>/<span id="clSecTotal2">5</span>
+              </div>
             </div>
-            <div class="cl-dash-sec-counter" id="clSecCounter2">
-              <span id="clSecDone2">0</span>/<span id="clSecTotal2">0</span>
+            <div class="cl-step-rules" id="clItems2">
+              <label class="cl-rule-row" id="clHardRule2-0" onclick="Checklist.toggleHard(2,0)" data-checked="false" style="--rc:#06b6d4">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">ቀጠና መነካቱን አረጋግጥ፦ ዋጋው የ MTF ቀጠና ውስጥ ገብቷል?</span>
+                </span>
+                <span class="cl-rule-ref-badge">[40, 211]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule2-1" onclick="Checklist.toggleHard(2,1)" data-checked="false" style="--rc:#06b6d4">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የመግቢያ ሞዴልን ለይ (Confirmation Entry (CE) vs Momentum Entry (ME))</span>
+                </span>
+                <span class="cl-rule-ref-badge">[39, 40, 237]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule2-2" onclick="Checklist.toggleHard(2,2)" data-checked="false" style="--rc:#06b6d4">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የሻማ አካል መዘጋት (Body Closure)፦ በ 1 ደቂቃ ላይ BOS መከሰቱን በሻማ አካል እንጂ በጅራት (Wick) ብቻ አለመሆኑን አረጋግጥ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[188, 210]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule2-3" onclick="Checklist.toggleHard(2,3)" data-checked="false" style="--rc:#06b6d4">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የስጋት አስተዳደር (Risk Management)፦ በአንድ ትሬድ 1% ስጋት ብቻ ተጠቀም፤ ቢያንስ 1:3 RR መኖሩን አረጋግጥ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[48, 522]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule2-4" onclick="Checklist.toggleHard(2,4)" data-checked="false" style="--rc:#06b6d4">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የስቶፕ ሎስ (SL) አቀማመጥ፦ SLህን ቀጠናው ከከሸፈ (Invalidation point) ትሬዱ ትርጉም በማይሰጥበት ቦታ ላይ አድርግ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[264, 270]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
             </div>
           </div>
-          <div class="cl-dash-items" id="clItems2"></div>
         </div>
+      </div>
 
-        <!-- ── SECTION 4: LTF Framework (Trades Inside Trades) ── -->
-        <div class="cl-dash-section" id="clDashSection3">
-          <div class="cl-dash-section-header" style="--sec-color:#f59e0b;--sec-bg:rgba(245,158,11,0.08);--sec-bd:rgba(245,158,11,0.2)">
-            <div class="cl-dash-sec-badge">
-              <i class="fas fa-layer-group"></i>
+      <!-- ╔══════════════════════════════════════╗
+           ║  STEP 04 — Trades Inside Trades (Green) ║
+           ╚══════════════════════════════════════╝ -->
+      <div class="cl-step-section" id="clDashSection3" data-step="04" data-color="#22c55e">
+        <div class="cl-step-layout">
+          <div class="cl-step-badge-col">
+            <div class="cl-step-badge" style="--step-clr:#22c55e;--step-bg:rgba(34,197,94,0.12);">
+              <span class="cl-step-word">STEP</span>
+              <span class="cl-step-num">04</span>
             </div>
-            <div class="cl-dash-sec-meta">
-              <div class="cl-dash-sec-tf">LTF+</div>
-              <div class="cl-dash-sec-title">"Trades Inside of Trades"</div>
-              <div class="cl-dash-sec-amh">አወሳሰድ — LTF Framework</div>
+            <!-- No vline on last step -->
+          </div>
+          <div class="cl-step-content">
+            <div class="cl-step-head" style="--step-clr:#22c55e">
+              <div class="cl-step-tf-badge" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)">LTF+</div>
+              <div class="cl-step-titles">
+                <h3 class="cl-step-title" style="color:#22c55e">"Trades Inside of Trades" አወሳሰድ</h3>
+                <p class="cl-step-amh">LTF Framework &mdash; Nested Trade Execution</p>
+              </div>
+              <div class="cl-step-sec-counter" id="clSecCounter3">
+                <span id="clSecDone3">0</span>/<span id="clSecTotal3">4</span>
+              </div>
             </div>
-            <div class="cl-dash-sec-counter" id="clSecCounter3">
-              <span id="clSecDone3">0</span>/<span id="clSecTotal3">0</span>
+            <div class="cl-step-rules" id="clItems3">
+              <label class="cl-rule-row" id="clHardRule3-0" onclick="Checklist.toggleHard(3,0)" data-checked="false" style="--rc:#22c55e">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የትልቁን አቅጣጫ እወቅ፦ ለምሳሌ HTF ለሽያጭ (Sell) እየጠበቀ ከሆነ፣ ዋጋው ወደ ሽያጭ ቀጠናው የሚመለስበትን Pullback ለይ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[5]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule3-1" onclick="Checklist.toggleHard(3,1)" data-checked="false" style="--rc:#22c55e">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">የጥቃቅን መዋቅር BOS ፈልግ፦ ዋጋው በትልቁ ተመላሽ እያደረገ ባለበት ወቅት በ 15m ወይም 5m ገበታ ላይ የመዋቅር ሽግግር ካሳየህ እንደ ገለልተኛ ትሬድ ውሰደው</span>
+                </span>
+                <span class="cl-rule-ref-badge">[34, 137]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule3-2" onclick="Checklist.toggleHard(3,2)" data-checked="false" style="--rc:#22c55e">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">ግልጽ መዳረሻ (Target) ይኑርህ፦ በትሬድ ውስጥ ያለ ትሬድ ትርፍህ (TP) በትልቁ ታሪክ ላይ ካለው የሽያጭ ቀጠና በላይ መሄድ የለበትም</span>
+                </span>
+                <span class="cl-rule-ref-badge">[129, 135]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
+              <label class="cl-rule-row" id="clHardRule3-3" onclick="Checklist.toggleHard(3,3)" data-checked="false" style="--rc:#22c55e">
+                <span class="cl-rule-check"></span>
+                <span class="cl-rule-body">
+                  <span class="cl-rule-text">ሁለት ጊዜ አትቀጣ፦ በውስጠኛው ትሬድ ላይ የምትወስደው ስጋት ከጠቅላላው 1% እንዳይበልጥ ተጠንቀቅ</span>
+                </span>
+                <span class="cl-rule-ref-badge">[6]</span>
+                <span class="cl-rule-status"><i class="fas fa-clock"></i> PENDING</span>
+              </label>
             </div>
           </div>
-          <div class="cl-dash-items" id="clItems3"></div>
         </div>
+      </div>
 
-      </div><!-- /cl-dash-grid -->
+      <!-- ══ CLOSING QUOTE BANNER ══ -->
+      <div class="cl-quote-banner">
+        <div class="cl-quote-inner">
+          <div class="cl-quote-icon"><i class="fas fa-quote-left"></i></div>
+          <p class="cl-quote-text">
+            ትዕግስት፣ ዲሲፕሊን እና ዕቅድ &mdash; ሦስቱ የስኬት ምሰሶዎች።
+            <em>ህጉን ተከተል፤ ትርፉ ይከተልሃል።</em>
+          </p>
+          <p class="cl-quote-sub">Patience · Discipline · Planning &mdash; Follow the rules; the profit follows you.</p>
+        </div>
+      </div>
 
-      <!-- ── Footer action bar ── -->
-      <div class="cl-dash-footer">
-        <div class="cl-dash-footer-inner">
-          <div class="cl-dash-footer-meta">
-            <span id="clProgressDone" class="cl-dash-footer-count"></span>
-            <span id="clProgressPct"  class="cl-dash-footer-pct"></span>
-            <!-- legacy IDs kept for backward-compat with existing JS -->
+      <!-- ══ Footer ══ -->
+      <div class="cl-infog-footer">
+        <div class="cl-infog-footer-inner">
+          <div class="cl-infog-footer-meta">
+            <span id="clProgressDone" class="cl-infog-footer-done"></span>
+            <span id="clProgressPct" class="cl-infog-footer-pct"></span>
+            <!-- legacy compat IDs -->
             <span class="hidden" id="clProgressDone1"></span>
             <span class="hidden" id="clProgressPct1"></span>
             <span class="hidden" id="clProgressDone2"></span>
             <span class="hidden" id="clProgressPct2"></span>
           </div>
-          <button onclick="Checklist.saveSession()" class="cl-dash-save-btn">
-            <i class="fas fa-floppy-disk mr-2"></i>Save &amp; Close
-          </button>
-          <button onclick="Checklist.resetAll()" class="cl-dash-reset-btn" title="Reset all checks">
-            <i class="fas fa-rotate-left mr-1.5"></i>Reset
+          <button onclick="Checklist.saveSession()" class="cl-infog-save-btn">
+            <i class="fas fa-floppy-disk mr-1.5"></i>Save &amp; Close
           </button>
         </div>
       </div>
 
-    </div><!-- /cl-dash-body -->
+    </div><!-- /cl-infog-body -->
 
-    <!-- Legacy hidden IDs required by existing JS but not rendered (keep compatibility) -->
+    <!-- Legacy hidden IDs for JS compatibility -->
     <span class="hidden" id="clStepNum"></span>
     <span class="hidden" id="clStepTitle"></span>
     <span class="hidden" id="clDot0"></span>
