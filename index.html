@@ -580,80 +580,158 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       CHECKLIST WIZARD — FULL SCREEN (3-page flow)
+       CHECKLIST DASHBOARD — FULL SCREEN PREMIUM
+       SMC/ICT Mechanical Execution System
   ═══════════════════════════════════════════ -->
   <div id="checklistModal" class="cl-fullscreen hidden" role="dialog" aria-modal="true" aria-label="Trade Checklist">
 
-    <!-- ── Top bar (always visible) ── -->
-    <div class="cl-fs-topbar">
-      <button onclick="Checklist.close()" class="cl-fs-back-btn" aria-label="Close checklist">
-        <i class="fas fa-arrow-left"></i>
-      </button>
-      <div class="cl-fs-topbar-center">
-        <span class="cl-fs-title">Trade Checklist</span>
-        <span id="clStepNum" class="cl-fs-page-tag">1 / 3</span>
+    <!-- ── Fixed Header ── -->
+    <div class="cl-dash-header">
+      <div class="cl-dash-header-inner">
+
+        <!-- Back Button -->
+        <button onclick="Checklist.close()" class="cl-dash-back-btn" aria-label="Close checklist">
+          <i class="fas fa-arrow-left mr-2"></i>
+          <span class="cl-dash-back-label">Back to Journal</span>
+        </button>
+
+        <!-- Title Block (centered) -->
+        <div class="cl-dash-title-block">
+          <div class="cl-dash-title">SMC/ICT Mechanical Execution System</div>
+          <div class="cl-dash-subtitle">Pre-Trade Verification Protocol</div>
+        </div>
+
+        <!-- Progress Counter -->
+        <div class="cl-dash-progress-pill">
+          <i class="fas fa-list-check cl-dash-progress-icon"></i>
+          <span id="clDashProgressText" class="cl-dash-progress-text">0 / 0 Rules</span>
+        </div>
+
       </div>
-      <!-- Step dot indicators -->
-      <div class="cl-fs-dot-row">
-        <span class="cl-fs-dot" id="clDot0"></span>
-        <span class="cl-fs-dot" id="clDot1"></span>
-        <span class="cl-fs-dot" id="clDot2"></span>
+
+      <!-- Thin rainbow progress bar -->
+      <div class="cl-fs-prog-bar-wrap">
+        <div id="clProgressBar" class="cl-fs-prog-bar-fill" style="width:0%"></div>
       </div>
     </div>
 
-    <!-- ── Thin progress bar (sticks under topbar) ── -->
-    <div class="cl-fs-prog-bar-wrap">
-      <div id="clProgressBar" class="cl-fs-prog-bar-fill" style="width:0%"></div>
-    </div>
+    <!-- ── Scrollable Dashboard Body ── -->
+    <div class="cl-dash-body">
+      <div class="cl-dash-grid">
 
-    <!-- ── Pages — only the active one is shown ── -->
-
-      <!-- Page 0 → HTF -->
-      <div class="cl-fs-page" id="clPage0">
-        <div class="cl-fs-page-inner">
-          <div class="cl-page-header" id="clPageHeader0"></div>
-          <div class="cl-page-meta">
-            <span id="clProgressDone" class="cl-page-done-label"></span>
-            <span id="clProgressPct"  class="cl-page-pct-label"></span>
+        <!-- ── SECTION 1: HTF — Weekly/1W ── -->
+        <div class="cl-dash-section" id="clDashSection0">
+          <!-- Section header -->
+          <div class="cl-dash-section-header" style="--sec-color:#22d3ee;--sec-bg:rgba(34,211,238,0.08);--sec-bd:rgba(34,211,238,0.2)">
+            <div class="cl-dash-sec-badge">
+              <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="cl-dash-sec-meta">
+              <div class="cl-dash-sec-tf">HTF</div>
+              <div class="cl-dash-sec-title">Weekly / 1W</div>
+              <div class="cl-dash-sec-amh">የታሪክ ግንባታ — Narrative Creation</div>
+            </div>
+            <div class="cl-dash-sec-counter" id="clSecCounter0">
+              <span id="clSecDone0">0</span>/<span id="clSecTotal0">0</span>
+            </div>
           </div>
-          <div class="cl-page-items" id="clItems0"></div>
+          <!-- Items -->
+          <div class="cl-dash-items" id="clItems0"></div>
+        </div>
+
+        <!-- ── SECTION 2: MTF — 1D, 4H ── -->
+        <div class="cl-dash-section" id="clDashSection1">
+          <div class="cl-dash-section-header" style="--sec-color:#a78bfa;--sec-bg:rgba(167,139,250,0.08);--sec-bd:rgba(167,139,250,0.2)">
+            <div class="cl-dash-sec-badge">
+              <i class="fas fa-chart-bar"></i>
+            </div>
+            <div class="cl-dash-sec-meta">
+              <div class="cl-dash-sec-tf">MTF</div>
+              <div class="cl-dash-sec-title">Daily / 4H — 1D, 4H</div>
+              <div class="cl-dash-sec-amh">ትንተናን ማጥራት — Narrative Refinement</div>
+            </div>
+            <div class="cl-dash-sec-counter" id="clSecCounter1">
+              <span id="clSecDone1">0</span>/<span id="clSecTotal1">0</span>
+            </div>
+          </div>
+          <div class="cl-dash-items" id="clItems1"></div>
+        </div>
+
+        <!-- ── SECTION 3: LTF — 1H to 1m ── -->
+        <div class="cl-dash-section" id="clDashSection2">
+          <div class="cl-dash-section-header" style="--sec-color:#22c55e;--sec-bg:rgba(34,197,94,0.08);--sec-bd:rgba(34,197,94,0.2)">
+            <div class="cl-dash-sec-badge">
+              <i class="fas fa-chart-simple"></i>
+            </div>
+            <div class="cl-dash-sec-meta">
+              <div class="cl-dash-sec-tf">LTF</div>
+              <div class="cl-dash-sec-title">1H → 15m → 1m</div>
+              <div class="cl-dash-sec-amh">የንግድ አፈጻጸም — Narrative Trading</div>
+            </div>
+            <div class="cl-dash-sec-counter" id="clSecCounter2">
+              <span id="clSecDone2">0</span>/<span id="clSecTotal2">0</span>
+            </div>
+          </div>
+          <div class="cl-dash-items" id="clItems2"></div>
+        </div>
+
+        <!-- ── SECTION 4: LTF Framework (Trades Inside Trades) ── -->
+        <div class="cl-dash-section" id="clDashSection3">
+          <div class="cl-dash-section-header" style="--sec-color:#f59e0b;--sec-bg:rgba(245,158,11,0.08);--sec-bd:rgba(245,158,11,0.2)">
+            <div class="cl-dash-sec-badge">
+              <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="cl-dash-sec-meta">
+              <div class="cl-dash-sec-tf">LTF+</div>
+              <div class="cl-dash-sec-title">"Trades Inside of Trades"</div>
+              <div class="cl-dash-sec-amh">አወሳሰድ — LTF Framework</div>
+            </div>
+            <div class="cl-dash-sec-counter" id="clSecCounter3">
+              <span id="clSecDone3">0</span>/<span id="clSecTotal3">0</span>
+            </div>
+          </div>
+          <div class="cl-dash-items" id="clItems3"></div>
+        </div>
+
+      </div><!-- /cl-dash-grid -->
+
+      <!-- ── Footer action bar ── -->
+      <div class="cl-dash-footer">
+        <div class="cl-dash-footer-inner">
+          <div class="cl-dash-footer-meta">
+            <span id="clProgressDone" class="cl-dash-footer-count"></span>
+            <span id="clProgressPct"  class="cl-dash-footer-pct"></span>
+            <!-- legacy IDs kept for backward-compat with existing JS -->
+            <span class="hidden" id="clProgressDone1"></span>
+            <span class="hidden" id="clProgressPct1"></span>
+            <span class="hidden" id="clProgressDone2"></span>
+            <span class="hidden" id="clProgressPct2"></span>
+          </div>
+          <button onclick="Checklist.saveSession()" class="cl-dash-save-btn">
+            <i class="fas fa-floppy-disk mr-2"></i>Save &amp; Close
+          </button>
+          <button onclick="Checklist.resetAll()" class="cl-dash-reset-btn" title="Reset all checks">
+            <i class="fas fa-rotate-left mr-1.5"></i>Reset
+          </button>
         </div>
       </div>
 
-      <!-- Page 1 → MTF -->
-      <div class="cl-fs-page" id="clPage1" style="display:none">
-        <div class="cl-fs-page-inner">
-          <div class="cl-page-header" id="clPageHeader1"></div>
-          <div class="cl-page-meta">
-            <span class="cl-page-done-label" id="clProgressDone1"></span>
-            <span class="cl-page-pct-label"  id="clProgressPct1"></span>
-          </div>
-          <div class="cl-page-items" id="clItems1"></div>
-        </div>
-      </div>
+    </div><!-- /cl-dash-body -->
 
-      <!-- Page 2 → LTF -->
-      <div class="cl-fs-page" id="clPage2" style="display:none">
-        <div class="cl-fs-page-inner">
-          <div class="cl-page-header" id="clPageHeader2"></div>
-          <div class="cl-page-meta">
-            <span class="cl-page-done-label" id="clProgressDone2"></span>
-            <span class="cl-page-pct-label"  id="clProgressPct2"></span>
-          </div>
-          <div class="cl-page-items" id="clItems2"></div>
-        </div>
-      </div>
-
-    <!-- ── Bottom nav bar (always visible) ── -->
-    <div class="cl-fs-bottom-bar">
-      <button id="clBtnPrev" onclick="Checklist.prev()" class="cl-fs-btn-prev" disabled>
-        <i class="fas fa-arrow-left mr-1.5"></i>Prev
-      </button>
-      <div class="cl-fs-step-label" id="clStepTitle"></div>
-      <button id="clBtnNext" onclick="Checklist.next()" class="cl-fs-btn-next">
-        Next <i class="fas fa-arrow-right ml-1.5"></i>
-      </button>
-    </div>
+    <!-- Legacy hidden IDs required by existing JS but not rendered (keep compatibility) -->
+    <span class="hidden" id="clStepNum"></span>
+    <span class="hidden" id="clStepTitle"></span>
+    <span class="hidden" id="clDot0"></span>
+    <span class="hidden" id="clDot1"></span>
+    <span class="hidden" id="clDot2"></span>
+    <div  class="hidden" id="clPage0"></div>
+    <div  class="hidden" id="clPage1"></div>
+    <div  class="hidden" id="clPage2"></div>
+    <div  class="hidden" id="clPageHeader0"></div>
+    <div  class="hidden" id="clPageHeader1"></div>
+    <div  class="hidden" id="clPageHeader2"></div>
+    <button class="hidden" id="clBtnPrev"></button>
+    <button class="hidden" id="clBtnNext"></button>
 
   </div>
 
