@@ -258,31 +258,38 @@ const DB = (() => {
 
     /* ── Seed default items if DB is fresh ── */
     seedChecklistDefaults: async () => {
-      const count = await db.checklistItems.count();
-      if (count > 0) return; // already seeded
+      // Version key — bump this string whenever rules change to force a re-seed.
+      const SEED_VERSION = 'amharic-v1';
+      const storedVersion = localStorage.getItem('fx-checklist-seed-version');
+      if (storedVersion === SEED_VERSION) return; // already seeded this version
+
+      // Clear old rules and re-seed fresh
+      await db.checklistItems.clear();
+      localStorage.setItem('fx-checklist-seed-version', SEED_VERSION);
       const defaults = [
-        // HTF — Weekly/1W — Narrative Creation (Rules 1–5)
-        { timeframe: 'HTF',  label: 'Identify Weekly market structure: HH/HL bullish or LH/LL bearish [22, 111]',    order: 0 },
-        { timeframe: 'HTF',  label: 'Mark institutional order flow levels (Weekly OB, FVG, Liquidity pools) [45]',   order: 1 },
-        { timeframe: 'HTF',  label: 'Confirm Weekly Premium/Discount array bias — are we in PD or Discount? [67]',   order: 2 },
-        { timeframe: 'HTF',  label: 'Note Weekly SIBI/BISI zones that align with current narrative [88]',            order: 3 },
-        { timeframe: 'HTF',  label: 'Mark kill zone windows (London / NY) and upcoming high-impact news [101]',      order: 4 },
-        // MTF — 1D, 4H — Narrative Refinement (Rules 6–9)
-        { timeframe: 'MTF',  label: 'Confirm Daily structure aligns with Weekly bias — no HTF contradiction [133]',  order: 0 },
-        { timeframe: 'MTF',  label: 'Identify Daily/4H BOS or CHoCH to confirm narrative shift [155]',               order: 1 },
-        { timeframe: 'MTF',  label: 'Locate MTF POI: OB, FVG or Breaker Block at premium/discount level [178]',     order: 2 },
-        { timeframe: 'MTF',  label: 'Wait for 4H candle close confirming displacement into POI [188, 210]',          order: 3 },
-        // LTF — 1H → 15m → 1m — Narrative Trading (Rules 10–14)
-        { timeframe: 'LTF',  label: 'Confirm 1H SMS (shift of market structure) at MTF POI [222]',                  order: 0 },
-        { timeframe: 'LTF',  label: 'Identify 15m entry OB with displacement candle above/below it [240]',          order: 1 },
-        { timeframe: 'LTF',  label: 'Validate entry: price must return to LTF OB with MSS on 1m [255]',             order: 2 },
-        { timeframe: 'LTF',  label: 'Confirm R:R ≥ 1:2 — SL below OB low, TP at next HTF liquidity [270]',         order: 3 },
-        { timeframe: 'LTF',  label: 'Journal entry logged before execution — screenshot attached [285]',             order: 4 },
-        // LTF+ — "Trades Inside of Trades" Framework (Rules 15–18)
-        { timeframe: 'LTF+', label: 'Confirm outer trade HTF POI has been reached and is reacting [300]',           order: 0 },
-        { timeframe: 'LTF+', label: 'On 5m/1m: identify inner BOS showing institutional participation [315]',       order: 1 },
-        { timeframe: 'LTF+', label: 'Inner OB formed after BOS — price returns to fill inner OB [330]',             order: 2 },
-        { timeframe: 'LTF+', label: 'Inner trade TP aligned with outer trade entry confirmation zone [345]',         order: 3 },
+        // HTF — Weekly/1W — የታሪክ ግንባታ (Narrative Creation)
+        { timeframe: 'HTF',  label: 'የአሁኑን የዋጋ ጉዞ (Current Leg) ለይ፦ ዋጋው በከፍተኛ ግስጋሴ (Impulsive) ወይስ በትረማስ (Corrective) ላይ ነው?', order: 0 },
+        { timeframe: 'HTF',  label: 'መዋቅራዊ አቅጣጫን ለይ፦ ገበያው HH/HL (Bullish) ወይስ LL/LH (Bearish) እየሠራ ነው? [22, 111]', order: 1 },
+        { timeframe: 'HTF',  label: 'የሳምንቱን የዋጋ ክልል (Range) አውጣ፦ ዋጋው በዚህ ሳምንት ሊንቀሳቀስ የሚችልበትን ከፍተኛ እና ዝቅተኛ ነጥብ ምልክት አድርግ [112, 141]።', order: 2 },
+        { timeframe: 'HTF',  label: 'ወደ ግራ ተመልከት (Look Left)፦ ግልጽ ያልተነኩ ቀጠናዎችን (Untapped POIs)፣ ሊኩዊዲቲ (EQH/EQL) እና ክፍተቶችን (Gaps/Inefficiency) ፈልግ [22, 113]።', order: 3 },
+        { timeframe: 'HTF',  label: 'የሳምንቱን አቅጣጫ (Bias) ወስን፦ ዋጋው ወደ የትኛው ሊኩዊዲቲ ወይም ቀጠና እንደ ማግኔት ይሳባል? [23, 116]', order: 4 },
+        // MTF — 1D, 4H — ትንተናን ማጥራት (Narrative Refinement)
+        { timeframe: 'MTF',  label: 'የ HTF ታሪክን አረጋግጥ፦ በትልቁ ያየኸው አቅጣጫ አሁንም አልተቀየረም?', order: 0 },
+        { timeframe: 'MTF',  label: 'ቀጠናዎችን አጥራ (Refine POIs)፦ የሳምንቱን ትላልቅ ቀጠናዎች ወደ ዕለታዊ ወይም የ 4 ሰዓት ጥቃቅን ቀጠናዎች ቀይር [28, 117]።', order: 1 },
+        { timeframe: 'MTF',  label: 'የመንገዱን ግልጽነት አረጋግጥ፦ ዋጋው ከቀጠናው ተነስቶ እስከ ግቡ (Target) ድረስ የሚገታው ሌላ ቀጠና የለም?', order: 2 },
+        { timeframe: 'MTF',  label: 'እቅድህን በዝርዝር አስቀምጥ፦ "ዋጋው ይህን POI ቢነካ እና LTF BOS ቢሰጠኝ፣ እገዛለሁ" የሚል If This Then That እቅድ ይኑርህ [29, 104]።', order: 3 },
+        // LTF — 1H እስከ 1m — የንግድ አፈጻጸም (Narrative Trading)
+        { timeframe: 'LTF',  label: 'ቀጠና መነካቱን አረጋግጥ፦ ዋጋው የ MTF ቀጠና ውስጥ ገብቷል? [40, 211]', order: 0 },
+        { timeframe: 'LTF',  label: 'Confirmation Entry (CE)፦ የመዋቅር ሽግግር (Structural Shift) ከተፈጠረ በኋላ ግባ [39, 237]።', order: 1 },
+        { timeframe: 'LTF',  label: 'Momentum Entry (ME)፦ ገበያው በጣም ፈጣን ከሆነ ወዲያውኑ በሻማ መዘጋት (Body Closure) ግባ [40, 253]።', order: 2 },
+        { timeframe: 'LTF',  label: 'የሻማ አካል መዘጋት (Body Closure)፦ BOS በሻማ አካል እንጂ በጅራት (Wick) ብቻ አለመሆኑን አረጋግጥ [188, 210]።', order: 3 },
+        { timeframe: 'LTF',  label: 'ስጋት 1% ብቻ — RR ቢያንስ 1:3 መሆኑን አረጋግጥ [48, 522, 523, 524]።', order: 4 },
+        { timeframe: 'LTF',  label: 'SL አቀማመጥ፦ ቀጠናው ከከሸፈ (Invalidation point) ትሬዱ ትርጉም በማይሰጥበት ቦታ ላይ አድርግ [264, 270]።', order: 5 },
+        // LTF+ — "Trades Inside of Trades" አወሳሰድ
+        { timeframe: 'LTF+', label: 'የትልቁን አቅጣጫ እወቅ፦ HTF ለሽያጭ (Sell) ከጠበቀ ዋጋው ወደ ሽያጭ ቀጠናው የሚመለስበትን Pullback ለይ።', order: 0 },
+        { timeframe: 'LTF+', label: 'የጥቃቅን BOS ፈልግ፦ ዋጋው Pullback ሲያደርግ በ 15m ወይም 5m ለግዢ (Buy) BOS ካሳየ እንደ ገለልተኛ ትሬድ ውሰደው [34, 137]።', order: 1 },
+        { timeframe: 'LTF+', label: 'ግልጽ TP ይኑርህ፦ ትርፍ (TP) በትልቁ ታሪክ ላይ ካለው የሽያጭ ቀጠና (Supply) በላይ መሄድ የለበትም [129, 135]።', order: 2 },
+        { timeframe: 'LTF+', label: 'ሁለት ጊዜ አትቀጣ፦ ውስጣዊ ትሬዱ ላይ የምትወስደው ስጋት ከጠቅላላው 1% እንዳይበልጥ ተጠንቀቅ።', order: 3 },
       ];
       await db.checklistItems.bulkAdd(defaults);
     },
