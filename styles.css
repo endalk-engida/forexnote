@@ -2825,3 +2825,55 @@ html:not(.dark) .cl-quote-banner { background: linear-gradient(135deg, rgba(2,13
 
 html:not(.dark) .export-btn-csv { background: rgba(22,163,74,0.06); border-color: rgba(22,163,74,0.25); color: #16a34a; }
 html:not(.dark) .export-btn-pdf { background: rgba(220,38,38,0.06); border-color: rgba(220,38,38,0.25); color: #dc2626; }
+
+/* ═══════════════════════════════════════════════════════
+   SHARE JOURNAL MODULE — styles
+   ═══════════════════════════════════════════════════════ */
+
+/* Trade-type selector buttons in Share Journal */
+.share-type-btn {
+  background: rgba(30,41,59,0.6);
+  border-color: rgba(71,85,105,0.5);
+  color: #94a3b8;
+  font-weight: 500;
+}
+.share-type-btn:hover {
+  border-color: rgba(139,92,246,0.4);
+  color: #c4b5fd;
+  background: rgba(139,92,246,0.06);
+}
+.share-type-active {
+  background: rgba(139,92,246,0.12);
+  border-color: rgba(139,92,246,0.45);
+  color: #a78bfa;
+}
+
+/* Spin animation for share button loading state */
+@keyframes share-pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.7; transform:scale(0.96); }
+}
+#btnGenerateShareLink.generating {
+  animation: share-pulse 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Read-only preview: dim/hide elements that should not appear */
+.read-only-hidden { display: none !important; }
+
+/* Shared trade cards — remove interactive button glow in read-only */
+.read-only-mode .card-btn.delete { display: none !important; }
+.read-only-mode .card-btn[onclick*="editTrade"] { display: none !important; }
+
+/* Highlight shared trade count badge */
+#shareTradeBadge {
+  background: rgba(139,92,246,0.15);
+  border: 1px solid rgba(139,92,246,0.35);
+  color: #a78bfa;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 20px;
+  margin-left: 6px;
+  letter-spacing: 0.04em;
+}
