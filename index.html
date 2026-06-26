@@ -267,6 +267,28 @@
   </header>
 
   <!-- ═══════════════════════════════════════════
+       READ-ONLY PREVIEW BANNER
+       Shown when app is loaded with ?shareFileId=
+  ═══════════════════════════════════════════ -->
+  <div id="readOnlyBanner" class="hidden sticky top-[56px] z-30 border-b border-violet-500/30 bg-violet-900/60 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-6 h-6 rounded-md bg-violet-500/20 border border-violet-500/40 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-eye text-violet-300 text-[10px]"></i>
+        </div>
+        <div>
+          <span class="text-xs font-semibold text-violet-200">Read-Only Preview</span>
+          <span id="readOnlyMeta" class="text-[11px] text-violet-400 ml-2">— Shared trade log</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="hidden sm:inline text-[10px] text-violet-400/70 italic">እርስዎ ምንም ሊቀይሩ አይችሉም</span>
+        <div class="px-2 py-0.5 rounded-full bg-violet-500/20 border border-violet-500/40 text-[10px] text-violet-300 font-medium">VIEW ONLY</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
        MAIN CONTENT
   ═══════════════════════════════════════════ -->
   <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
@@ -483,6 +505,124 @@
           </button>
         </div>
       </div>
+
+      <!-- ══════════════════════════════════════════
+           SHARE JOURNAL SECTION
+           Generates a view-only Google Drive link
+           for a selected date range of trades.
+      ══════════════════════════════════════════ -->
+      <div id="shareJournalSection" class="mx-4 mb-4 mt-2 rounded-xl border border-slate-700/60 bg-surface-700/40 overflow-hidden">
+
+        <!-- Collapsible header -->
+        <button
+          onclick="ShareJournal.togglePanel()"
+          class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-700/60 transition-colors group"
+          aria-expanded="false"
+          id="shareJournalToggle"
+        >
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500/20 to-brand/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
+              <i class="fas fa-share-nodes text-[11px] text-violet-400"></i>
+            </div>
+            <div>
+              <span class="text-sm font-semibold text-slate-200">Share Journal</span>
+              <span class="text-[11px] text-slate-500 ml-2 hidden sm:inline">— generate a view-only link for a mentor or friend</span>
+            </div>
+          </div>
+          <i id="shareJournalChevron" class="fas fa-chevron-down text-slate-500 text-xs transition-transform duration-200 group-hover:text-slate-300"></i>
+        </button>
+
+        <!-- Collapsible body -->
+        <div id="shareJournalBody" class="hidden border-t border-slate-700/50">
+          <div class="p-4 space-y-4">
+
+            <!-- Explainer -->
+            <div class="flex items-start gap-2.5 rounded-lg bg-violet-500/8 border border-violet-500/20 px-3 py-2.5">
+              <i class="fas fa-circle-info text-violet-400 text-xs mt-0.5 flex-shrink-0"></i>
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                ይህ ቅንጥብ ያለው ታሪክ ወደ Google Drive ይጫናል እና ማንኛውም ሰው ሊያየው የሚችለው ሊንክ ይፈጠራል። ሊንኩ የሚከፈተው ሰው ምንም ሊቀይር አይችልም።
+              </p>
+            </div>
+
+            <!-- Date range inputs -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="space-y-1.5">
+                <label for="shareStartDate" class="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                  <i class="fas fa-calendar-plus text-violet-400 mr-1"></i>Start Date
+                </label>
+                <input
+                  id="shareStartDate"
+                  type="date"
+                  class="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700/60 text-slate-200 text-sm focus:border-violet-500/60 focus:outline-none focus:ring-1 focus:ring-violet-500/30 transition-colors"
+                />
+              </div>
+              <div class="space-y-1.5">
+                <label for="shareEndDate" class="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                  <i class="fas fa-calendar-check text-violet-400 mr-1"></i>End Date
+                </label>
+                <input
+                  id="shareEndDate"
+                  type="date"
+                  class="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700/60 text-slate-200 text-sm focus:border-violet-500/60 focus:outline-none focus:ring-1 focus:ring-violet-500/30 transition-colors"
+                />
+              </div>
+            </div>
+
+            <!-- Trade type selector -->
+            <div class="space-y-1.5">
+              <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <i class="fas fa-filter text-violet-400 mr-1"></i>Include
+              </label>
+              <div class="flex gap-2">
+                <button type="button" id="shareTypeAll" onclick="ShareJournal.setType('all')"
+                  class="share-type-btn share-type-active flex-1 text-xs py-1.5 px-3 rounded-lg border transition-all">
+                  All Trades
+                </button>
+                <button type="button" id="shareTypeBacktest" onclick="ShareJournal.setType('backtest')"
+                  class="share-type-btn flex-1 text-xs py-1.5 px-3 rounded-lg border transition-all">
+                  <i class="fas fa-flask-vial mr-1"></i>Backtest Only
+                </button>
+                <button type="button" id="shareTypeLive" onclick="ShareJournal.setType('live')"
+                  class="share-type-btn flex-1 text-xs py-1.5 px-3 rounded-lg border transition-all">
+                  <i class="fas fa-signal mr-1"></i>Live Only
+                </button>
+              </div>
+            </div>
+
+            <!-- Generate button -->
+            <button
+              id="btnGenerateShareLink"
+              onclick="ShareJournal.generateLink()"
+              class="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-95
+                     bg-gradient-to-r from-violet-600 to-brand text-white shadow-lg shadow-violet-500/20
+                     hover:from-violet-500 hover:to-cyan-400 hover:shadow-violet-500/30
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+            >
+              <i id="shareIcon" class="fas fa-share-nodes"></i>
+              <span id="shareBtnLabel">Generate Share Link</span>
+            </button>
+
+            <!-- Result area (hidden until link generated) -->
+            <div id="shareResultArea" class="hidden space-y-2">
+              <div class="flex items-center gap-2 rounded-lg bg-win/8 border border-win/30 px-3 py-2">
+                <i class="fas fa-circle-check text-win text-sm flex-shrink-0"></i>
+                <p class="text-[11px] text-win font-medium">ሊንኩ ተፈጥሮ ክሊፕቦርድ ላይ ተቀምጧል!</p>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-surface-900 border border-slate-700/60 px-3 py-2">
+                <i class="fab fa-google-drive text-slate-400 text-xs flex-shrink-0"></i>
+                <a id="shareResultLink" href="#" target="_blank" rel="noopener"
+                   class="text-[11px] text-brand hover:text-cyan-300 truncate flex-1 transition-colors">—</a>
+                <button onclick="ShareJournal.copyLink()" title="Copy link"
+                  class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md hover:bg-surface-700 text-slate-400 hover:text-brand transition-colors">
+                  <i class="fas fa-copy text-[11px]"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
     </section>
 
   </main>
