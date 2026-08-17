@@ -13,95 +13,96 @@ html { scroll-behavior: smooth; }
 ═══════════════════════════════════════════════ */
 :root {
   /* Backgrounds */
-  --bg-page:      #0a0f1e;
-  --bg-card:      #0f172a;
-  --bg-raised:    #1e293b;
-  --bg-input:     #1e293b;
-  --bg-chip:      #334155;
-  --bg-hover:     rgba(30,41,59,0.8);
+  --bg-page:      #000000;
+  --bg-card:      #0a0a0a;
+  --bg-raised:    #141414;
+  --bg-input:     #141414;
+  --bg-chip:      #1f1f1f;
+  --bg-hover:     rgba(255,255,255,0.06);
 
   /* Borders */
-  --bd-faint:     rgba(51,65,85,0.45);
-  --bd-subtle:    rgba(71,85,105,0.55);
-  --bd-normal:    #475569;
+  --bd-faint:     rgba(255,255,255,0.09);
+  --bd-subtle:    rgba(255,255,255,0.16);
+  --bd-normal:    rgba(255,255,255,0.28);
 
   /* Text */
-  --tx-primary:   #f1f5f9;
-  --tx-secondary: #94a3b8;
-  --tx-muted:     #64748b;
-  --tx-faint:     #334155;
+  --tx-primary:   #ffffff;
+  --tx-secondary: #a3a3a3;
+  --tx-muted:     #737373;
+  --tx-faint:     #404040;
 
-  /* Brand (cyan) */
-  --brand:        #22d3ee;
-  --brand-bg:     rgba(34,211,238,0.08);
-  --brand-bd:     rgba(34,211,238,0.28);
-  --brand-glow:   0 0 18px rgba(34,211,238,0.18);
+  /* Brand (mono accent) */
+  --brand:        #ffffff;
+  --brand-bg:     rgba(255,255,255,0.08);
+  --brand-bd:     rgba(255,255,255,0.30);
+  --brand-glow:   0 0 0 1px rgba(255,255,255,0.18);
 
-  /* Semantic */
-  --win:          #22c55e;
-  --win-bg:       rgba(34,197,94,0.10);
-  --win-bd:       rgba(34,197,94,0.22);
-  --loss:         #ef4444;
-  --loss-bg:      rgba(239,68,68,0.10);
-  --loss-bd:      rgba(239,68,68,0.22);
-  --warn:         #f59e0b;
+  /* Semantic — win = solid ink pill, loss = muted outline */
+  --win:          #000000;
+  --win-bg:       #ffffff;
+  --win-bd:       #ffffff;
+  --loss:         #d4d4d4;
+  --loss-bg:      transparent;
+  --loss-bd:      rgba(255,255,255,0.30);
+  --warn:         #d4d4d4;
 
   /* Header */
-  --hdr-bg:       rgba(15,23,42,0.93);
-  --hdr-bd:       rgba(51,65,85,0.45);
+  --hdr-bg:       rgba(0,0,0,0.93);
+  --hdr-bd:       rgba(255,255,255,0.09);
 
   /* Modals */
-  --modal-bg:     #0f172a;
-  --modal-bd:     rgba(51,65,85,0.65);
+  --modal-bg:     #0a0a0a;
+  --modal-bd:     rgba(255,255,255,0.14);
 
   /* Shadows */
-  --sh-card:      0 4px 20px rgba(0,0,0,0.38);
-  --sh-menu:      0 16px 48px rgba(0,0,0,0.6);
-  --sh-modal:     0 24px 64px rgba(0,0,0,0.6);
+  --sh-card:      0 4px 20px rgba(0,0,0,0.5);
+  --sh-menu:      0 16px 48px rgba(0,0,0,0.7);
+  --sh-modal:     0 24px 64px rgba(0,0,0,0.7);
 }
 
 /* ═══════════════════════════════════════════════
    DESIGN TOKENS — Light override
 ═══════════════════════════════════════════════ */
 html:not(.dark) {
-  --bg-page:      #f0f4f8;
+  --bg-page:      #ffffff;
   --bg-card:      #ffffff;
-  --bg-raised:    #f8fafc;
-  --bg-input:     #f1f5f9;
-  --bg-chip:      #e2e8f0;
-  --bg-hover:     rgba(226,232,240,0.7);
+  --bg-raised:    #fafafa;
+  --bg-input:     #ffffff;
+  --bg-chip:      #f2f2f2;
+  --bg-hover:     rgba(0,0,0,0.04);
 
-  --bd-faint:     rgba(203,213,225,0.7);
-  --bd-subtle:    rgba(148,163,184,0.5);
-  --bd-normal:    #94a3b8;
+  --bd-faint:     rgba(0,0,0,0.09);
+  --bd-subtle:    rgba(0,0,0,0.14);
+  --bd-normal:    rgba(0,0,0,0.24);
 
-  --tx-primary:   #0f172a;
-  --tx-secondary: #1e293b;
-  --tx-muted:     #475569;
-  --tx-faint:     #94a3b8;
+  --tx-primary:   #0a0a0a;
+  --tx-secondary: #404040;
+  --tx-muted:     #737373;
+  --tx-faint:     #a3a3a3;
 
-  --brand:        #0284c7;
-  --brand-bg:     rgba(2,132,199,0.07);
-  --brand-bd:     rgba(2,132,199,0.28);
-  --brand-glow:   0 0 16px rgba(2,132,199,0.12);
+  --brand:        #000000;
+  --brand-bg:     rgba(0,0,0,0.05);
+  --brand-bd:     rgba(0,0,0,0.30);
+  --brand-glow:   0 0 0 1px rgba(0,0,0,0.14);
 
-  --win:          #16a34a;
-  --win-bg:       rgba(22,163,74,0.08);
-  --win-bd:       rgba(22,163,74,0.22);
-  --loss:         #dc2626;
-  --loss-bg:      rgba(220,38,38,0.08);
-  --loss-bd:      rgba(220,38,38,0.22);
-  --warn:         #d97706;
+  /* Semantic — win = solid ink pill, loss = muted outline */
+  --win:          #ffffff;
+  --win-bg:       #000000;
+  --win-bd:       #000000;
+  --loss:         #525252;
+  --loss-bg:      transparent;
+  --loss-bd:      rgba(0,0,0,0.24);
+  --warn:         #525252;
 
   --hdr-bg:       rgba(255,255,255,0.93);
-  --hdr-bd:       rgba(203,213,225,0.6);
+  --hdr-bd:       rgba(0,0,0,0.08);
 
   --modal-bg:     #ffffff;
-  --modal-bd:     rgba(203,213,225,0.7);
+  --modal-bd:     rgba(0,0,0,0.12);
 
-  --sh-card:      0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
-  --sh-menu:      0 12px 40px rgba(0,0,0,0.14);
-  --sh-modal:     0 16px 48px rgba(0,0,0,0.14);
+  --sh-card:      0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --sh-menu:      0 12px 40px rgba(0,0,0,0.10);
+  --sh-modal:     0 16px 48px rgba(0,0,0,0.12);
 }
 
 /* ═══════════════════════════════════════════════
@@ -648,76 +649,121 @@ html:not(.dark) .calendar-day { background: var(--bg-raised); border-color: var(
 
 
 /* ═══════════════════════════════════════════════
-   TRADE CARDS
+   TRADE SHEET — Notion/Excel-style monochrome table
 ═══════════════════════════════════════════════ */
-.trade-card {
-  background: var(--bg-card);
-  border: 1px solid var(--bd-faint);
-  border-radius: 14px; padding: 16px;
-  display: flex; flex-direction: column; gap: 10px;
-  transition: all 0.18s;
-  position: relative; overflow: hidden;
+.trade-sheet-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--bd-faint);
 }
-html:not(.dark) .trade-card { background: var(--bg-card); border-color: var(--bd-faint); }
-.trade-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0;
-  width: 3px; height: 100%;
-  border-radius: 3px 0 0 3px;
+.trade-sheet {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
 }
-.trade-card.win::before  { background: var(--win); }
-.trade-card.loss::before { background: var(--loss); }
-.trade-card:hover {
-  border-color: var(--bd-subtle);
-  box-shadow: var(--sh-card);
-  transform: translateY(-1px);
+
+/* Header row — sticky, uppercase, like a spreadsheet header bar */
+.trade-sheet thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--bg-raised);
+  color: var(--tx-muted);
+  font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bd-normal);
+  border-right: 1px solid var(--bd-faint);
+  white-space: nowrap;
 }
-.trade-card-header { display: flex; align-items: center; justify-content: space-between; }
-.trade-pair {
+.trade-sheet thead th:last-child { border-right: none; }
+
+/* Body cells — thin gridlines like a spreadsheet */
+.trade-sheet tbody td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--bd-faint);
+  border-right: 1px solid var(--bd-faint);
+  color: var(--tx-secondary);
+  vertical-align: middle;
+}
+.trade-sheet tbody td:last-child { border-right: none; }
+
+.trade-row { transition: background 0.12s; }
+.trade-row:hover td { background: var(--bg-hover); }
+.trade-row:nth-child(even) td { background: var(--bg-card); }
+.trade-row:nth-child(even):hover td { background: var(--bg-hover); }
+
+/* Left accent rail — ink bar for win, faint bar for loss (no colour) */
+.trade-sheet tbody .col-date { position: relative; padding-left: 18px; }
+.trade-sheet tbody .col-date::before {
+  content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; width: 3px;
+  border-radius: 2px;
+}
+.trade-row.win  .col-date::before { background: var(--tx-primary); }
+.trade-row.loss .col-date::before { background: var(--bd-normal); }
+
+.cell-mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--tx-secondary); }
+.cell-rr   { color: var(--tx-primary); font-weight: 600; }
+.cell-pair {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 15px; font-weight: 600;
+  font-weight: 700; font-size: 13px;
   color: var(--tx-primary); letter-spacing: 0.02em;
 }
+
+/* Buy/Sell chip — filled vs outlined, no colour needed */
+.type-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 3px 8px; border-radius: 6px;
+  color: var(--tx-secondary); border: 1px solid var(--bd-subtle);
+}
+.type-chip i { font-size: 9px; }
+.type-chip.type-buy  { color: var(--tx-primary); border-color: var(--bd-normal); }
+.type-chip.type-sell { color: var(--tx-muted); border-style: dashed; }
+
+/* Outcome badge — solid ink pill for Win, muted outline for Loss */
 .outcome-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 10px; border-radius: 9999px;
-  font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 700;
   letter-spacing: 0.04em; text-transform: uppercase;
 }
 .outcome-badge.win  { background: var(--win-bg);  color: var(--win);  border: 1px solid var(--win-bd); }
 .outcome-badge.loss { background: var(--loss-bg); color: var(--loss); border: 1px solid var(--loss-bd); }
 
-.trade-meta { display: flex; flex-wrap: wrap; gap: 8px; }
-.meta-chip {
-  display: flex; align-items: center; gap: 4px;
-  font-size: 11px; color: var(--tx-muted);
-  font-family: 'JetBrains Mono', monospace;
+/* Notes — single-line ellipsis, like a spreadsheet cell */
+.cell-notes {
+  display: block; max-width: 240px;
+  font-size: 12px; color: var(--tx-muted); line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.meta-chip i { color: var(--bd-normal); font-size: 10px; }
-.meta-chip strong { color: var(--tx-secondary); font-weight: 500; }
+.cell-notes.is-empty { color: var(--tx-faint); }
 
-.trade-notes {
-  font-size: 12px; color: var(--tx-muted); line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden;
-}
-.trade-card-actions { display: flex; gap: 6px; margin-top: 4px; }
-.card-btn {
-  flex: 1; padding: 6px 10px; border-radius: 8px;
-  font-size: 11px; font-weight: 500;
+.row-actions { display: flex; gap: 4px; }
+.cell-btn {
+  width: 26px; height: 26px; border-radius: 6px;
+  font-size: 11px;
   border: 1px solid var(--bd-faint);
   background: var(--bg-raised);
   color: var(--tx-muted); cursor: pointer;
   text-align: center; text-decoration: none;
-  display: flex; align-items: center; justify-content: center; gap: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
   transition: all 0.14s;
 }
-.card-btn:hover { border-color: var(--brand-bd); color: var(--brand); background: var(--brand-bg); }
-.card-btn.delete:hover { border-color: var(--loss-bd); color: var(--loss); background: var(--loss-bg); }
+.cell-btn:hover { border-color: var(--brand-bd); color: var(--tx-primary); background: var(--brand-bg); }
+.cell-btn.is-delete:hover { border-color: var(--bd-normal); color: var(--tx-primary); background: var(--bg-chip); }
+.cell-btn.is-disabled { opacity: 0.35; cursor: not-allowed; }
+.cell-lock { color: var(--tx-faint); font-size: 11px; }
 
 .sync-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-.sync-dot.pending { background: var(--warn); }
-.sync-dot.synced  { background: var(--win); }
+.sync-dot.pending { background: var(--tx-faint); }
+.sync-dot.synced  { background: var(--tx-primary); box-shadow: 0 0 0 2px var(--bg-hover); }
+
+/* Mobile — collapse the sheet to a horizontally-scrollable strip, keep it tabular */
+@media (max-width: 640px) {
+  .trade-sheet { min-width: 760px; font-size: 12px; }
+  .cell-notes { max-width: 140px; }
+}
 
 
 /* ═══════════════════════════════════════════════
@@ -1014,6 +1060,14 @@ html:not(.dark) .text-brand { color: var(--brand) !important; }
 html:not(.dark) section h2 { color: var(--tx-primary) !important; }
 html:not(.dark) section span.text-xs.text-slate-500 { color: var(--tx-muted) !important; }
 
+/* Monochrome win/loss utilities — stay legible across both themes */
+.text-win  { color: var(--tx-primary) !important; font-weight: 700; }
+.text-loss { color: var(--tx-muted)   !important; }
+.bg-win    { background-color: var(--tx-primary) !important; }
+.bg-loss   { background-color: var(--tx-faint)   !important; }
+.border-win  { border-color: var(--tx-primary) !important; }
+.border-loss { border-color: var(--bd-normal)   !important; }
+
 /* Pagination info text */
 html:not(.dark) #pageInfo { color: var(--tx-muted) !important; }
 
@@ -1029,8 +1083,8 @@ html:not(.dark) #pageInfo { color: var(--tx-muted) !important; }
 
 /* Transition all themed elements smoothly */
 .app-header, .mobile-menu, .modal-box,
-.trade-card, .stats-mini-card, .calendar-day,
-.form-input, .tab-btn, .ctrl-btn, .card-btn,
+.trade-row, .stats-mini-card, .calendar-day,
+.form-input, .tab-btn, .ctrl-btn, .cell-btn,
 .cl-item, .cl-admin-item, .network-badge {
   transition-property: background-color, border-color, color, box-shadow, transform;
   transition-duration: 0.2s;
@@ -1251,30 +1305,10 @@ html:not(.dark) .drive-sync-overlay {
 
 
 /* ═══════════════════════════════════════════════
-   MOBILE TRADE CARD FIXES
-   Stack meta info, prevent overflow at small widths
+   MOBILE TRADE SHEET FIXES
+   Slightly denser sizing at small widths
 ═══════════════════════════════════════════════ */
 @media (max-width: 640px) {
-  /* Cards already forced single column above; ensure no overflow */
-  .trade-card { padding: 14px 14px; }
-
-  /* Trade meta chips wrap cleanly */
-  .trade-meta { gap: 6px; }
-  .meta-chip { font-size: 10.5px; }
-
-  /* Card actions — 2 per row on mobile */
-  .trade-card-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-  }
-  .trade-card-actions .card-btn:only-child,
-  .trade-card-actions .card-btn:first-child:last-child { grid-column: 1 / -1; }
-
-  /* Pair font slightly smaller */
-  .trade-pair { font-size: 13px; }
-
-  /* Outcome badge compact */
   .outcome-badge { padding: 2px 8px; font-size: 10px; }
 
   /* Filter bar date fields side-by-side on very small screens */
@@ -1292,7 +1326,7 @@ html:not(.dark) .drive-sync-overlay {
   z-index: 9000;          /* above header (40), modals (50), PWA banner (55) */
   display: flex;
   flex-direction: column;
-  background: #0a0f1e;    /* solid dark — surface-900, no transparency */
+  background: var(--bg-page);    /* solid, no transparency */
   overflow: hidden;
   isolation: isolate;     /* new stacking context so nothing bleeds through */
 }
@@ -2387,6 +2421,16 @@ html:not(.dark) .cl-dash-reset-btn { background: #f1f5f9; border-color: #e2e8f0;
 }
 .cl-infographic.hidden { display: none; }
 
+/* ── Strategy guide iframe ── */
+.strategy-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: var(--bg-page);
+}
+
 /* ── Fixed top banner header ── */
 .cl-infog-header {
   position: sticky;
@@ -2809,22 +2853,19 @@ html:not(.dark) .cl-quote-banner { background: linear-gradient(135deg, rgba(2,13
   white-space: nowrap;
 }
 .export-btn-csv {
-  background: rgba(34,197,94,0.08);
-  border-color: rgba(34,197,94,0.28);
-  color: #22c55e;
+  background: var(--bg-raised);
+  border-color: var(--bd-normal);
+  color: var(--tx-primary);
 }
-.export-btn-csv:hover { background: rgba(34,197,94,0.15); transform: translateY(-1px); }
+.export-btn-csv:hover { background: var(--brand-bg); border-color: var(--brand-bd); transform: translateY(-1px); }
 .export-btn-pdf {
-  background: rgba(239,68,68,0.08);
-  border-color: rgba(239,68,68,0.28);
-  color: #ef4444;
+  background: transparent;
+  border-color: var(--bd-subtle);
+  color: var(--tx-muted);
 }
-.export-btn-pdf:hover { background: rgba(239,68,68,0.15); transform: translateY(-1px); }
+.export-btn-pdf:hover { background: var(--bg-hover); border-color: var(--bd-normal); color: var(--tx-primary); transform: translateY(-1px); }
 .export-btn-label { display: none; }
 @media (min-width: 480px) { .export-btn-label { display: inline; } }
-
-html:not(.dark) .export-btn-csv { background: rgba(22,163,74,0.06); border-color: rgba(22,163,74,0.25); color: #16a34a; }
-html:not(.dark) .export-btn-pdf { background: rgba(220,38,38,0.06); border-color: rgba(220,38,38,0.25); color: #dc2626; }
 
 /* ═══════════════════════════════════════════════════════
    SHARE JOURNAL MODULE — styles
@@ -2862,8 +2903,8 @@ html:not(.dark) .export-btn-pdf { background: rgba(220,38,38,0.06); border-color
 .read-only-hidden { display: none !important; }
 
 /* Shared trade cards — remove interactive button glow in read-only */
-.read-only-mode .card-btn.delete { display: none !important; }
-.read-only-mode .card-btn[onclick*="editTrade"] { display: none !important; }
+.read-only-mode .cell-btn.is-delete { display: none !important; }
+.read-only-mode .cell-btn[onclick*="editTrade"] { display: none !important; }
 
 /* Highlight shared trade count badge */
 #shareTradeBadge {
