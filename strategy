@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIC— Fake Out · Order Flow Shift · Flip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0d10;
+    --bg-chart:#05070a;
+    --panel:#11161b;
+    --panel-2:#0d1216;
+    --border:#1e2730;
+    --border-soft:#161d24;
+    --text:#e8edf1;
+    --muted:#8a97a2;
+    --muted-2:#5f6a73;
+    --buy:#20b2a0;
+    --buy-soft:#20b2a022;
+    --sell:#ef5654;
+    --sell-soft:#ef565422;
+    --gold:#e3a94a;
+    --gold-soft:#e3a94a1f;
+    --blue:#4f90f2;
+    --blue-soft:#4f90f21f;
+  }
+
+  * { box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:'Noto Sans Ethiopic','IBM Plex Mono',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+
+  ::selection{ background:var(--gold); color:#0a0d10; }
+
+  /* ---------- background grid texture ---------- */
+  body{
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 42px 42px;
+    background-position: center top;
+  }
+
+  /* ---------- sticky ticker nav ---------- */
+  .navbar{
+    position:sticky; top:0; z-index:50;
+    background:rgba(10,13,16,0.86);
+    backdrop-filter: blur(10px);
+    border-bottom:1px solid var(--border);
+    overflow-x:auto;
+    white-space:nowrap;
+  }
+  .navbar::-webkit-scrollbar{ height:0; }
+  .navbar-inner{ display:flex; align-items:center; gap:2px; padding:0 14px; max-width:1040px; margin:0 auto; }
+  .navbar a{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.4px;
+    color:var(--muted); text-decoration:none; padding:13px 12px;
+    border-bottom:2px solid transparent; white-space:nowrap;
+    transition: color .2s, border-color .2s;
+  }
+  .navbar a:hover{ color:var(--text); border-bottom-color:var(--gold); }
+  .navbar .brand{ color:var(--gold); font-weight:700; padding-right:16px; border-right:1px solid var(--border); margin-right:6px; }
+
+  .wrap{ max-width:1040px; margin:0 auto; padding:0 16px 90px; }
+
+  /* ---------- hero ---------- */
+  .hero{ padding:56px 16px 34px; text-align:center; position:relative; }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.5px;
+    color:var(--gold); text-transform:uppercase; margin-bottom:18px;
+  }
+  .eyebrow::before, .eyebrow::after{ content:''; width:22px; height:1px; background:var(--gold); opacity:.5; }
+  h1{
+    font-size:clamp(26px,4.6vw,42px); line-height:1.25; margin:0 0 10px; font-weight:700;
+    letter-spacing:-0.3px;
+  }
+  h1 .accent{ color:var(--buy); }
+  .hero-sub{ color:var(--muted); font-size:14.5px; max-width:620px; margin:0 auto 30px; line-height:1.8; }
+
+  .ticker{
+    border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+    overflow:hidden; padding:10px 0; margin-bottom:8px;
+  }
+  .ticker-track{ display:flex; width:max-content; animation: scrollTicker 26s linear infinite; }
+  .ticker-item{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted);
+    padding:0 26px; display:flex; align-items:center; gap:8px; flex-shrink:0;
+  }
+  .ticker-item b{ color:var(--text); font-weight:600; }
+  .ticker-item.up{ color:var(--buy); }
+  .ticker-item.down{ color:var(--sell); }
+  @keyframes scrollTicker{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+
+  /* ---------- section headers ---------- */
+  .section{ margin-top:64px; scroll-margin-top:64px; }
+  .section-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+  .section-num{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted-2); }
+  .section-head h2{ font-size:19px; margin:0; font-weight:700; }
+  .section-desc{ color:var(--muted); font-size:13px; line-height:1.75; margin:-8px 0 20px; max-width:720px; }
+
+  /* ---------- generic card ---------- */
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:20px; margin-bottom:22px;
+  }
+  .card h3{ font-size:16px; margin:0 0 4px; color:var(--text); }
+  .card p.desc{ font-size:12.5px; color:var(--muted); margin:0 0 16px; line-height:1.7; }
+
+  /* ---------- workflow (daily -> 4h -> 15m) ---------- */
+  .flow{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .flow-step{
+    background:var(--panel-2); border:1px solid var(--border-soft); border-radius:10px;
+    padding:16px; position:relative;
+  }
+  .flow-step .fnum{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold);
+    border:1px solid var(--gold); border-radius:100px; width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center; margin-bottom:10px;
+  }
+  .flow-step h4{ margin:0 0 6px; font-size:14px; }
+  .flow-step p{ margin:0; font-size:12px; color:var(--muted); line-height:1.7; }
+  .flow-arrow{
+    display:none; align-items:center; justify-content:center; color:var(--muted-2); font-size:18px;
+  }
+  @media(min-width:760px){
+    .flow{ grid-template-columns:1fr auto 1fr auto 1fr; align-items:stretch; }
+    .flow-arrow{ display:flex; }
+  }
+  @media(max-width:759px){ .flow{ grid-template-columns:1fr; } }
+
+  /* ---------- supply/demand basic explainer ---------- */
+  .sd-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:stretch; }
+  .sd-box{ flex:1; min-width:260px; }
+  .sd-box svg{ display:block; width:100%; height:auto; background:var(--bg-chart); border-radius:8px; }
+  .sd-legend{ display:flex; gap:18px; margin-top:12px; flex-wrap:wrap; }
+  .sd-legend span{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
+  .sd-dot{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+  /* ---------- rule chip row (core rule) ---------- */
+  .chiprow{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+  .chip{
+    background:var(--panel-2); border:1px solid var(--border-soft); border-left:3px solid var(--gold);
+    border-radius:8px; padding:13px 14px;
+  }
+  .chip b{ display:block; font-size:12.5px; color:var(--gold); margin-bottom:4px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3px;}
+  .chip span{ font-size:12.5px; color:var(--muted); line-height:1.7; }
+
+  /* ---------- model cards ---------- */
+  .model-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:22px; margin-bottom:30px; scroll-margin-top:64px;
+  }
+  .model-head{ display:flex; align-items:center; gap:12px; margin-bottom:6px; flex-wrap:wrap; }
+  .model-index{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--bg);
+    background:var(--gold); border-radius:6px; width:26px; height:26px;
+    display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;
+  }
+  .model-card h2{ font-size:18px; margin:0; }
+  .model-card .desc{ font-size:12.5px; color:var(--muted); margin:6px 0 18px; line-height:1.75; max-width:680px; }
+
+  /* step tracker */
+  .steps{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  .step{
+    display:flex; align-items:center; gap:7px; background:var(--panel-2);
+    border:1px solid var(--border-soft); border-radius:100px; padding:6px 12px 6px 6px;
+  }
+  .step .n{
+    width:19px; height:19px; border-radius:50%; background:var(--gold); color:var(--bg);
+    font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .step .t{ font-size:11.5px; color:var(--text); }
+
+  .row{ display:flex; gap:16px; flex-wrap:wrap; }
+  .panel{ flex:1; min-width:300px; background:var(--bg-chart); border:1px solid var(--border-soft); border-radius:10px; padding:12px; position:relative; overflow:hidden; }
+  .panel svg{ display:block; width:100%; height:auto; }
+  .tag{
+    position:absolute; top:14px; left:16px; font-family:'IBM Plex Mono',monospace;
+    font-size:11px; font-weight:700; letter-spacing:0.6px; padding:4px 10px 4px 8px;
+    border-radius:5px; z-index:2; display:flex; align-items:center; gap:5px;
+  }
+  .tag.buy{ color:var(--buy); background:var(--buy-soft); border:1px solid var(--buy); }
+  .tag.sell{ color:var(--sell); background:var(--sell-soft); border:1px solid var(--sell); }
+  .panel-label{
+    position:absolute; bottom:10px; right:14px; font-family:'IBM Plex Mono',monospace;
+    font-size:10px; color:var(--muted-2); letter-spacing:.3px;
+  }
+
+  .zz-line{ fill:none; stroke:#e8edf1; stroke-width:2.2; }
+
+  .entry-zone{ fill-opacity:.35; }
+  .sweep-dot,.entry-dot{ transform-box: fill-box; transform-origin:center; }
+
+  /* ---------- notes / rule callouts ---------- */
+  .notes{ margin-top:18px; display:grid; gap:10px; }
+  .rule{
+    display:flex; gap:12px; align-items:flex-start; background:var(--panel-2);
+    border:1px solid var(--border-soft); border-radius:9px; padding:12px 14px;
+  }
+  .rule .ico{
+    flex-shrink:0; width:26px; height:26px; border-radius:7px; display:flex; align-items:center;
+    justify-content:center; font-size:13px; margin-top:1px;
+  }
+  .rule.info .ico{ background:var(--blue-soft); color:var(--blue); }
+  .rule.warn .ico{ background:var(--sell-soft); color:var(--sell); }
+  .rule.ok .ico{ background:var(--buy-soft); color:var(--buy); }
+  .rule .body{ font-size:12.8px; color:#d7dde1; line-height:1.75; }
+  .rule .body b{ color:#fff; }
+  .rule-label{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.4px;
+    text-transform:uppercase; display:block; margin-bottom:3px;
+  }
+  .rule.info .rule-label{ color:var(--blue); }
+  .rule.warn .rule-label{ color:var(--sell); }
+  .rule.ok .rule-label{ color:var(--buy); }
+
+  /* ---------- usage matrix (continuation vs reversal) ---------- */
+  .usage-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .usage-card{ border-radius:12px; padding:19px; border:1px solid var(--border); }
+  .usage-card.reversal{ background:linear-gradient(180deg,var(--blue-soft),transparent 60%),var(--panel); border-color:#2c4a72; }
+  .usage-card.continuation{ background:linear-gradient(180deg,var(--gold-soft),transparent 60%),var(--panel); border-color:#5c4a25; }
+  .usage-card h4{ margin:0 0 4px; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .usage-card p.sub{ margin:0 0 14px; font-size:12px; color:var(--muted); }
+  .usage-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .usage-list li{
+    font-size:12.5px; display:flex; gap:9px; align-items:flex-start; color:#d7dde1; line-height:1.65;
+  }
+  .pill-ok{ font-family:'IBM Plex Mono',monospace; font-size:10px; background:var(--buy-soft); color:var(--buy); border:1px solid var(--buy); border-radius:5px; padding:1px 6px; flex-shrink:0; margin-top:2px;}
+  .pill-no{ font-family:'IBM Plex Mono',monospace; font-size:10px; background:var(--sell-soft); color:var(--sell); border:1px solid var(--sell); border-radius:5px; padding:1px 6px; flex-shrink:0; margin-top:2px;}
+
+  /* ---------- checklist (numbered vertical steps) ---------- */
+  .checklist{ display:flex; flex-direction:column; gap:0; margin-bottom:22px; }
+  .check-item{
+    display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--border-soft);
+  }
+  .check-item:last-child{ border-bottom:none; }
+  .check-item .cnum{
+    flex-shrink:0; width:26px; height:26px; border-radius:7px; background:var(--panel-2);
+    border:1px solid var(--gold); color:var(--gold); font-family:'IBM Plex Mono',monospace;
+    font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .check-item b{ display:block; font-size:13px; color:var(--text); margin-bottom:3px; }
+  .check-item span{ font-size:12.5px; color:var(--muted); line-height:1.7; }
+
+  /* ---------- process chain (horizontal cause->effect steps) ---------- */
+  .chain{ display:flex; flex-wrap:wrap; align-items:stretch; gap:0; margin-bottom:20px; }
+  .chain-step{
+    flex:1; min-width:150px; background:var(--panel-2); border:1px solid var(--border-soft);
+    border-radius:9px; padding:13px 14px; position:relative;
+  }
+  .chain-step b{ display:block; font-size:12.5px; color:var(--gold); margin-bottom:4px; font-family:'IBM Plex Mono',monospace; }
+  .chain-step span{ font-size:12px; color:var(--muted); line-height:1.65; }
+  .chain-arrow{ display:flex; align-items:center; justify-content:center; padding:0 10px; color:var(--muted-2); font-size:16px; }
+  @media(max-width:700px){ .chain{ flex-direction:column; } .chain-arrow{ transform:rotate(90deg); padding:2px 0; } }
+
+  /* ---------- term grid (definitions) ---------- */
+  .termgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-bottom:20px; }
+  .term{
+    background:var(--panel-2); border:1px solid var(--border-soft); border-radius:8px; padding:12px 14px;
+  }
+  .term b{ display:block; font-size:12.5px; color:var(--blue); margin-bottom:4px; font-family:'IBM Plex Mono',monospace; }
+  .term span{ font-size:12px; color:var(--muted); line-height:1.65; }
+
+  /* ---------- decision table ---------- */
+  .dtable{ width:100%; border-collapse:collapse; margin-bottom:20px; font-size:12.5px; }
+  .dtable th{ text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.4px; text-transform:uppercase; color:var(--muted-2); padding:8px 12px; border-bottom:1px solid var(--border); }
+  .dtable td{ padding:10px 12px; border-bottom:1px solid var(--border-soft); color:#d7dde1; }
+  .dtable tr:last-child td{ border-bottom:none; }
+  .dtable .v-ok{ color:var(--buy); font-weight:700; font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
+  .dtable .v-no{ color:var(--sell); font-weight:700; font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
+  [dir="rtl-fix"]{}
+  .dtable th:first-child, .dtable td:first-child{ text-align:right; }
+
+  /* ---------- valid / invalid loss ---------- */
+  .loss-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .loss-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:19px; }
+  .loss-card.valid{ border-top:3px solid var(--blue); }
+  .loss-card.invalid{ border-top:3px solid var(--sell); }
+  .loss-card h4{ margin:0 0 10px; font-size:14.5px; display:flex; align-items:center; gap:8px; }
+  .loss-card ul{ margin:0; padding-left:18px; }
+  .loss-card li{ font-size:12.5px; color:#d7dde1; line-height:1.8; margin-bottom:6px; }
+
+  /* ---------- summary ---------- */
+  .summary-card{
+    border-radius:12px; padding:22px; border:1px solid #3a2f19;
+    background:linear-gradient(135deg,var(--gold-soft),transparent 70%), var(--panel);
+  }
+  .summary-card h3{ color:var(--gold); margin:0 0 14px; font-size:15px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3px; }
+  .summary-card ul{ margin:0; padding-left:18px; }
+  .summary-card li{ font-size:13px; color:#e3e8eb; line-height:1.85; margin-bottom:7px; }
+  .summary-card li b{ color:var(--gold); }
+
+  footer{
+    text-align:center; margin-top:70px; padding-top:26px; border-top:1px solid var(--border);
+    color:var(--muted-2); font-size:11.5px; font-family:'IBM Plex Mono',monospace; line-height:2;
+  }
+  footer .h{ color:var(--muted); }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <span class="brand mono">TRADE·SITE</span>
+    <a href="#workflow">ዝግጅት</a>
+    <a href="#zones">ድማንድ/ሰፕላይ</a>
+    <a href="#core-rule">ኢንትሪ ደንብ</a>
+    <a href="#keylevel">HTF ቁልፍ ደረጃ</a>
+    <a href="#pullback-science">ፑልባክ ሳይንስ</a>
+    <a href="#liquidity">ሊኩዲቲ</a>
+    <a href="#fakeout">ፌክ አውት</a>
+    <a href="#ofs">ኦርደር ፍሎ ሽፍት</a>
+    <a href="#flip">ፍሊፕ</a>
+    <a href="#usage">መቼ የቱን</a>
+    <a href="#lossreview">ሎስ ግምገማ</a>
+    <a href="#summary">ማጠቃለያ</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="eyebrow mono">SMART MONEY ENTRY MODELS</div>
+  <h1>NIC <span class="accent">ሞዴሎች</span></h1>
+  <p class="hero-sub">ከላይቭ ባክቴስት ሴሽኑ የተጠናቀረ ሙሉ ማጠቃለያ — Fake Out፣ Order Flow Shift እና Flip ሶስቱም ሞዴሎች በተመሳሳይ የማርኬት structure ላይ እንዴት እንደሚለያዩ፣ መቼ ጥቅም ላይ እንደሚውሉ፣ እና ትክክለኛ Entry/SL አቀማመጥ ደረጃ በደረጃ።</p>
+  <div class="ticker">
+    <div class="ticker-track mono">
+      <span class="ticker-item">XAUUSD <b>DEMAND ZONE</b></span>
+      <span class="ticker-item up">FAKE OUT ▲ ዊክ ብቻ</span>
+      <span class="ticker-item">ORDER FLOW SHIFT <b>2 KILVL</b></span>
+      <span class="ticker-item down">FLIP ▼ ፑልባክ የለም</span>
+      <span class="ticker-item">ENTRY ZONE <b>WICK → BODY</b></span>
+      <span class="ticker-item up">MANIPULATION REQUIRED</span>
+      <span class="ticker-item">SL <b>30 PIP · GOLD</b></span>
+      <span class="ticker-item down">VALID LOSS ≠ MISTAKE</span>
+      <!-- duplicate for seamless loop -->
+      <span class="ticker-item">XAUUSD <b>DEMAND ZONE</b></span>
+      <span class="ticker-item up">FAKE OUT ▲ ዊክ ብቻ</span>
+      <span class="ticker-item">ORDER FLOW SHIFT <b>2 KILVL</b></span>
+      <span class="ticker-item down">FLIP ▼ ፑልባክ የለም</span>
+      <span class="ticker-item">ENTRY ZONE <b>WICK → BODY</b></span>
+      <span class="ticker-item up">MANIPULATION REQUIRED</span>
+      <span class="ticker-item">SL <b>30 PIP · GOLD</b></span>
+      <span class="ticker-item down">VALID LOSS ≠ MISTAKE</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ============ 0. WORKFLOW ============ -->
+  <section class="section" id="workflow">
+    <div class="section-head"><span class="section-num mono">00</span><h2>ከየት ተነስተን የት እንደርሳለን — ባክቴስት ቅደም ተከተል</h2></div>
+    <p class="section-desc">ትንታኔ የምንጀምረው ከትልቁ ታይም ፍሬም ወደ ትንሹ ነው — ይህ "Top-Down" አካሄድ ማርኬቱን ትክክለኛ context ውስጥ ያስቀምጠዋል፤ ያለ ትልቁ ምስል፣ ትንሹ ታይም ፍሬም ብቻውን ማታልል ይችላል።</p>
+    <div class="flow">
+      <div class="flow-step">
+        <span class="fnum">1</span>
+        <h4>Daily — መነሻ</h4>
+        <p>ከዚህ በፊት የነበረውን ሙሉ ድል (ሞር ክላሪቲ) ለማየት ብቻ ነው የምንመለከተው — የመጀመሪያውን ሌግ የዘጋበትን ቦታ እናስምራለን።</p>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <span class="fnum">2</span>
+        <h4>4H — Structure</h4>
+        <p>ማርኬት structure-ን በደንብ ቪዥዋላይዝ እናደርጋለን፤ ድማንድ/ሰፕላይ ዞኖችን እናውቃለን፤ ፕራይስ አሁን የቱ ላይ እንዳለ እናረጋግጣለን።</p>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <span class="fnum">3</span>
+        <h4>15 Min — Entry</h4>
+        <p>ወደ ታች ወርደን ከ3ቱ ኢንትሪ ሞዴል (Fake Out / Order Flow Shift / Flip) አንዱ ካሟላ ብቻ ነው የምንገባው።</p>
+      </div>
+    </div>
+    <div class="notes" style="margin-top:14px;">
+      <div class="rule info">
+        <div class="ico">i</div>
+        <div class="body"><span class="rule-label">ለጀማሪዎች ምክር</span>መጀመሪያ <b>15 ደቂቃ ታይም ፍሬም ብቻውን</b> ተለማመዱ፤ ሶስቱን ሞዴል Mechanics በደንብ ተረዱ። ቀስ በቀስ 4H ኮራወርን ጨምሩበት። "Power of 3" የተባለ ኢንዲኬተር ካንድል ላይ ካለ፣ የ4H ካንድልስቲክን በ15 ደቂቃ ላይ በቀጥታ ስለሚያሳይ ተጠቀሙበት።</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 1. SUPPLY / DEMAND BASICS ============ -->
+  <section class="section" id="zones">
+    <div class="section-head"><span class="section-num mono">01</span><h2>ድማንድ ⇄ ሰፕላይ — መሰረታዊ ፅንሰ ሃሳብ</h2></div>
+    <p class="section-desc">ከ3ቱ ኢንትሪ ሞዴል ውስጥ አንዱ ትርጉም እንዲገባ፣ መጀመሪያ ደረጃ (level) እንዴት "ማንነቱን" እንደሚቀይር መረዳት ያስፈልጋል።</p>
+    <div class="card">
+      <div class="sd-row">
+        <div class="sd-box">
+          <svg viewBox="0 0 400 190" xmlns="http://www.w3.org/2000/svg">
+            <line x1="20" y1="95" x2="380" y2="95" stroke="#e3a94a" stroke-width="1.4" stroke-dasharray="5,4"/>
+            <rect x="0" y="0" width="400" height="95" fill="#ef5654" fill-opacity="0.06"/>
+            <rect x="0" y="95" width="400" height="95" fill="#20b2a0" fill-opacity="0.06"/>
+            <text x="14" y="18" fill="#ef5654" font-size="11" font-family="IBM Plex Mono">SUPPLY (ደረጃው ላይ ሲወርድ)</text>
+            <text x="14" y="178" fill="#20b2a0" font-size="11" font-family="IBM Plex Mono">DEMAND (ደረጃው ጥሶ ሲገባ)</text>
+            <polyline points="30,40 90,90 150,55 200,95 260,140 330,160" fill="none" stroke="#e8edf1" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="sd-box">
+          <p style="font-size:12.8px;color:#d7dde1;line-height:1.85;margin:2px 0 0;">
+            አንድ level መጀመሪያ ላይ ፕራይስ ሲወርድ እንደ <b style="color:#ef5654">ሰፕላይ</b> (ማራገፊያ) ያገለግላል። ያንን level ፕራይስ ሰብሮት ወደ ውስጥ ከገባ በኋላ ግን፣ ተመሳሳይ level አሁን እንደ <b style="color:#20b2a0">ድማንድ</b> (መግዣ) ያገለግላል። ፕራይስ ወደዛ level ተመልሶ ሲመጣ (retest)፣ አዲሱን ማንነት "ይፈትሸዋል" — <b>ፌክ አውት፣ ኦርደር ፍሎ ሽፍት እና ፍሊፕ</b> ሶስቱም የተገነቡት በዚህ አንድ concept ላይ ነው፤ የሚለያዩት ብቻ <b>እንዴት</b> ደረጃው እንደተሰበረ እና <b>እንዴት</b> ፕራይስ ተመልሶ እንደመጣ ነው።
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. CORE RULE ============ -->
+  <section class="section" id="core-rule">
+    <div class="section-head"><span class="section-num mono">02</span><h2>የሁሉም ሞዴል የጋራ ደንብ — Entry Zone እና SL</h2></div>
+    <p class="section-desc">ከየትኛውም ሞዴል ብንገባ፣ የመግቢያ ቦታችንና የስቶፕ ሎስ አቀማመጣችን ሁልጊዜ ተመሳሳይ መርህ ይከተላል።</p>
+    <div class="chiprow">
+      <div class="chip"><b>ENTRY ZONE</b><span>ሁልጊዜ ከ<b style="color:#e8edf1">ዊኩ (wick)</b> እስከ <b style="color:#e8edf1">ቦዲው (body)</b> ያለው ኤርያ ብቻ ነው — ከቦዲው አልፎ አይሆንም።</span></div>
+      <div class="chip"><b>SL — GOLD</b><span>ከቦዲው ውጪ ተጨማሪ <b style="color:#e8edf1">30 ፒፕ</b> ማርጅን እንሰጣለን።</span></div>
+      <div class="chip"><b>SL — FOREX PAIR</b><span>ከቦዲው ውጪ ተጨማሪ <b style="color:#e8edf1">1–2 ፒፕ</b> ማርጅን እንሰጣለን።</span></div>
+      <div class="chip"><b>1 OF 3 RULE</b><span>ከ3ቱ ሞዴል <b style="color:#e8edf1">አንዱ ብቻ</b> መሟላት አለበት — ምንም ካላሟላ አንገባም።</span></div>
+    </div>
+  </section>
+
+  <!-- ============ HTF KEY LEVEL ============ -->
+  <section class="section" id="keylevel">
+    <div class="section-head"><span class="section-num mono">02.1</span><h2>Higher Timeframe Key Level — ቁልፍ የዋጋ ደረጃ</h2></div>
+    <p class="section-desc">ከ NLM (Nexus Liquidity Matrix) ኮርስ የተወሰደ ተጨማሪ ጥልቀት — ኢንትሪ ከመውሰዳችን በፊት፣ ኢንትሪ ዞናችን የቆመበት <b style="color:#e8edf1">ከፍ ያለ ታይም ፍሬም ደረጃ</b> ራሱ ጠንካራ መሆኑን እናረጋግጣለን።</p>
+
+    <div class="card">
+      <h3>📖 ትርጉም</h3>
+      <p class="desc" style="margin-bottom:14px;">በታሪክ ውስጥ ዋጋው በተደጋጋሚ የደረሰበት እና ጠንካራ ምላሽ (መመለስ ወይም ስብራት) ያሳየበት፣ በትልልቅ ነጋዴዎች (Institutions) ዘንድ ከፍተኛ ትኩረት የሚሰጠው የዋጋ ነጥብ ወይም ቀጠና ነው — በነጋዴዎች አእምሮ ውስጥ እንደ ትልቅ የስነ-ልቦና ወሰን (Psychological Barrier) ሆኖ ያገለግላል።</p>
+      <div class="termgrid">
+        <div class="term"><b>ጠንካራ ደረጃ ምልክት 1</b><span>ዋጋው ብዙ ጊዜ ደረጃውን ሞክሮ ምላሽ ሰጥቷል</span></div>
+        <div class="term"><b>ጠንካራ ደረጃ ምልክት 2</b><span>ትልቅ Volume ደረጃው ላይ ይታያል</span></div>
+        <div class="term"><b>ጠንካራ ደረጃ ምልክት 3</b><span>ደረጃው ራሱ ከፍተኛ / ዝቅተኛ (High/Low) ላይ ነው</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🔄 S/D Flip ሎጂክ — Supply to Demand</h3>
+      <p class="desc" style="margin-bottom:14px;">ማርኬቱ አንድን Supply ቀጠና በከፍተኛ ኃይል (Displacement) ሰብሮ ሲወጣ፣ ያ ቦታ "የሃይል ለውጥ" እንደተደረገበት ይቆጠራል — ባንኮች ቀድሞ ይሸጡበት የነበረውን ቦታ አሁን ለመግዛት ዝግጁ ናቸው ማለት ነው።</p>
+      <div class="chain">
+        <div class="chain-step"><b>01</b><span>Supply ቀጠና ይፈጠራል — ባንኮች ሸጠው ዋጋ ወደ ታች ይወርዳል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>02</b><span>Displacement — ዋጋ በኃይል ቀጠናውን ሰብሮ ይወጣል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>03</b><span>Flip — Supply ቀጠናው አሁን Demand Zone ይሆናል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>04</b><span>Retracement & Entry — ዋጋ ተመልሶ Trapped Sellers ያስወጣል</span></div>
+      </div>
+      <div class="notes">
+        <div class="rule info"><div class="ico">i</div><div class="body"><span class="rule-label">ለምን ይሰራል</span>ባንኮች ቀጠናውን ሲሰብሩ፣ በዛ አካባቢ የታጠሩ ሻጮች (Trapped Sellers) ይኖራሉ። ዋጋው ተመልሶ ወደ ቀጠናው ሲመጣ (Retracement) እነዚያን ሻጮች ለማውጣት እና ትላልቅ የግዢ ትዕዛዞችን ለመሙላት ነው። DnS Flip (ከ Demand ወደ Supply) ደግሞ ልክ ተቃራኒው ይሰራል።</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🫥 Hidden Key Level — ተቃራኒ Candle ሎጂክ</h3>
+      <p class="desc" style="margin-bottom:14px;">በብዙ Bullish candles መሃል የምትገኝ አንዲት Bearish candle (ወይም በተቃራኒው) — ባንኮች ዋጋውን ይበልጥ ከመወርወራቸው በፊት በትንሹ "የሸጡበት" (Order Block / Trapped Orders) ቦታ ናት። ይህች candle በራሷ ጠንካራ HTF ቁልፍ ደረጃ ትሆናለች።</p>
+      <div class="termgrid">
+        <div class="term"><b>Order Block</b><span>ተቃራኒዋ Candle = ባንኮች ትዕዛዝ ያስቀመጡበት ቦታ</span></div>
+        <div class="term"><b>Breakeven Motivation</b><span>ባንኮች ኪሳራቸውን ወደ ዜሮ ለመዝጋት ወደ ቦታው ዋጋን ይመልሳሉ</span></div>
+        <div class="term"><b>New Orders</b><span>ቦታው ሲጎበኝ ባንኮች አዲስ ትልቅ ትዕዛዝ ይጨምሩበታል</span></div>
+        <div class="term"><b>Strong Reaction</b><span>ቀጠናው ሲነካ ዋጋ በኃይል ይዘላል — ለዚህ ነው Hidden Key Level የሚባለው</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⛽ Mitigation ሎጂክ — ማርኬት ሚዛን</h3>
+      <p class="desc" style="margin-bottom:14px;">ማርኬቱ ቀጠናን ጥሎ ሲሄድ ትልቅ ክፍተት (Imbalance/FVG) ይተዋል። ልክ አውሮፕላን ረጅም ጉዞ ከመሄዱ በፊት ነዳጅ ለመቅዳት እንደሚመለስ፣ ማርኬቱም Order Block-ን ጎብኝቶ ኃይሉን ሞልቶ ብቻ ነው ጉዞውን የሚቀጥለው — <b style="color:#e8edf1">Mitigate ካላደረገ ማርኬቱ ጉዞውን አይቀጥልም</b>።</p>
+      <div class="chain">
+        <div class="chain-step"><b>Imbalance</b><span>Order Block ፈጥሮ ይሄዳል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>Mitigation</b><span>ዋጋ ወደ Opposite Candle/Order Block ይመለሳል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>Continuation</b><span>ነባሩን ጉዞ በጠንካራው አቅጣጫ ይቀጥላል</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🎯 Precision Entry — 4H → 15M ትንተና</h3>
+      <p class="desc" style="margin-bottom:14px;">በ4 ሰዓት ቻርት ላይ የምታያት አንዲት ተቃራኒ Candle፣ ወደ 15 ደቂቃ ስትወርድ ትልቅ "የሊኩዲቲ አሰፋፈር" (Complex Structure) ሆና ታገኛታለህ — HTF ቁልፍ ደረጃ ላይ የደረሰ ኢንትሪ ብቻ ነው ከፍተኛ ዕድል (Confluence) ያለው።</p>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><span class="t">4H ቻርት — ተቃራኒ Candle ቀጠና ለይ</span></div>
+        <div class="step"><span class="n">2</span><span class="t">15M ቻርት — Complex Structure ፈልግ</span></div>
+        <div class="step"><span class="n">3</span><span class="t">3ቱ ኢንትሪ ሞዴል (Fake Out/OFS/Flip) ጠብቅ</span></div>
+        <div class="step"><span class="n">4</span><span class="t">1:5 RR ዒላማ አስቀምጥ</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⚖️ Midrange Key Level — Equilibrium</h3>
+      <p class="desc">በአንድ ትልቅ የዋጋ ክልል (Trading Range) ውስጥ ከፍተኛው (High) እና ዝቅተኛው (Low) መካከል የሚገኝ 50% መስመር ማርኬቱ Premium (ውድ) ወይም Discount (ርካሽ) ቀጠና ውስጥ መሆኑን ያሳያል።</p>
+      <div class="notes" style="margin-top:14px;">
+        <div class="rule ok"><div class="ico">✓</div><div class="body"><span class="rule-label">አሰራር</span>ዋጋ Midrange ከፍ ላይ (Premium) ከሆነ → ለ Sell ምልክት ፈልጉ። ዋጋ Midrange ከታች (Discount) ከሆነ → ለ Buy ምልክት ፈልጉ።</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PULLBACK SCIENCE ============ -->
+  <section class="section" id="pullback-science">
+    <div class="section-head"><span class="section-num mono">02.2</span><h2>የፑልባክ ጥልቅ ሳይንስ — Valid vs Invalid Pullback</h2></div>
+    <p class="section-desc">ከ NLM ኮርስ የተወሰደ — ትክክለኛ ፑልባክ (Valid Pullback) ለይቶ ማወቅ የ3ቱም ኢንትሪ ሞዴል (Fake Out, Order Flow Shift, Flip) መሠረት ነው።</p>
+
+    <div class="card">
+      <h3>⛽ ፑልባክ = "ነዳጅ ሰብሳቢ"</h3>
+      <p class="desc">ልክ እንደ ሮኬት ከማስጀመሩ በፊት ነዳጅ እንደሚያሰባስብ፣ ማርኬቱ ቀጥተኛ አቅጣጫ ከመቀጠሉ በፊት ፑልባክ ማድረግ ግዴታ ነው። ማርኬት = <b style="color:#e8edf1">Impulse (ፍሰት) + Pullback (እረፍት) + Continuation (መቀጠል)</b> — ይህ ሦስቱ ፍሰት ሳይጠናቀቅ ኢንትሪ ማድረግ ሁሌም "hunt" (ማደን) ውስጥ ያስገባል።</p>
+      <div class="notes" style="margin-top:14px;">
+        <div class="rule warn"><div class="ico">!</div><div class="body"><span class="rule-label">ዋናው ስህተት — FOMO ኢንትሪ</span>ትሬደሮች ቀጥተኛ ዋጋ እንቅስቃሴ ሲያዩ ፑልባክ ሳይጠብቁ ወዲያው ይገባሉ። ይህ ሁሌም ኪሳራ ያስከትላል።</div></div>
+        <div class="rule info"><div class="ico">i</div><div class="body"><span class="rule-label">ትክክለኛ pullback vs ተራ መወላወል</span>ብዙ ትሬደሮች Sideways movement (ወደ ጎን እንቅስቃሴ) ከፑልባክ ጋር ያምታቱታል። NLM ስርዓት ውስጥ ፑልባክ ማለት <b>የሊኩዲቲ ክምችት (Liquidity Sweep) የተፈጸመበት እንቅስቃሴ ብቻ</b> ነው።</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🏦 The Mechanics of the Sweep — ባንኮች እንዴት "ያድናሉ"?</h3>
+      <p class="desc" style="margin-bottom:14px;">ባንኮች ዋጋ ወደ ተራ ትሬደር ስቶፕ ሎስ አካባቢ ዝቅ ወይም ከፍ ያደርጉታል — ሊኩዲቲ ለመሰብሰብ (Stop Hunt)። ካጠናቀቁ በኋላ ብቻ ወደ ትክክለኛው አቅጣጫ ይቀጥላሉ።</p>
+      <div class="chain">
+        <div class="chain-step"><b>1. Attack Point</b><span>ከፍተኛ/ዝቅተኛውን ነጥብ የፈጠረውን Structural Candle መለየት</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>2. Wick Sweep</b><span>ተከታዩ candle የዋናውን candle ጫፍ በ<b style="color:#e8edf1">ዊክ</b> ሰብሮ ይወጣል — Stop Hunt አሻራ</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>3. Close Back</b><span>ሰብሮ የወጣው candle ወደ ቀዳሚ range ተመልሶ ይዘጋል — ይሄ ብቻ ነው Valid Sweep</span></div>
+      </div>
+      <div class="notes">
+        <div class="rule warn"><div class="ico">?</div><div class="body"><span class="rule-label">ወሳኝ ጥያቄ</span>Pullback "Valid" ነው ወይ ብሎ ለመጠየቅ አንድ ጥያቄ ብቻ በቂ ነው፦ <b>"ቀጣዩ candle የቀዳሚውን candle ጫፍ ሰብሮ ወደ ውስጥ ተመልሷል ወይ?"</b> መልሱ አዎ ከሆነ Valid፣ አይ ከሆነ Invalid — አትግባ።</div></div>
+      </div>
+      <table class="dtable">
+        <tr><th>ሁኔታ</th><th>ውሳኔ</th></tr>
+        <tr><td>Candle ጫፍ ሰብሮ ተመልሷል (Wick + Close Back)</td><td class="v-ok">VALID — ግባ</td></tr>
+        <tr><td>Candle ጫፍ ሰብሮ ቀጥሏል (Continuation)</td><td class="v-no">Breakout — ፑልባክ አይደለም</td></tr>
+        <tr><td>Candle ጫፍ ጨርሶ አልሰበረም (Inside Bar)</td><td class="v-no">INVALID — ጠብቅ</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>✅ የ"Valid" Pullback ማረጋገጫ ቼክሊስት — 7 ደረጃ</h3>
+      <p class="desc" style="margin-bottom:6px;">አንድም ደረጃ ሳይሟላ ኢንትሪ አይፈቀድም።</p>
+      <div class="checklist">
+        <div class="check-item"><span class="cnum">1</span><div><b>ዋና ፍሰት ለይ</b><span>ማርኬቱ Bullish ነው ወይስ Bearish? ከፍተኛ ፍሰቱን (Impulse) ካለፈበት አቅጣጫ አረጋግጡ።</span></div></div>
+        <div class="check-item"><span class="cnum">2</span><div><b>Structural Candle ለይ</b><span>ፍሰቱ ውስጥ ዋናውን High ወይም Low የፈጠረውን candle ምልክት አድርግ።</span></div></div>
+        <div class="check-item"><span class="cnum">3</span><div><b>Sweep ፈልግ</b><span>ቀጣዩ candle የዚያን candle High/Low ሰብሮ ወጥቷል ወይ? ካልወጣ — Pullback የለም።</span></div></div>
+        <div class="check-item"><span class="cnum">4</span><div><b>Close Back አረጋግጥ</b><span>ሰብሮ የወጣው candle ወደ ቀዳሚ range ተመልሶ ዘግቷል ወይ? Wick + Close = Valid Sweep።</span></div></div>
+        <div class="check-item"><span class="cnum">5</span><div><b>Inside Bar አይደለም ወይ?</b><span>ሁሉም እንቅስቃሴ ዋናው candle ውስጥ ከሆነ — ይህ ወጥመድ ነው፣ አይቆጠርም።</span></div></div>
+        <div class="check-item"><span class="cnum">6</span><div><b>Equal High/Low ፈትሽ</b><span>ሁለት ተከታታይ candles ጫፍ እኩል ከሆነ — የቅርብ ጊዜ (Recent) candle ብቻ ዋናው ነጥብ ነው።</span></div></div>
+        <div class="check-item"><span class="cnum">7</span><div><b>ኢንትሪ ሞዴል ጋር አጣምር</b><span>Valid Pullback ከተረጋገጠ — Order Flow Shift፣ Flip ወይም Fake Out ሞዴል ተጠቅሞ ኢንትሪ ውሰድ።</span></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🪤 የ"Inside Bar" ወጥመድ — Invalid Pullback</h3>
+      <p class="desc" style="margin-bottom:14px;">ማርኬቱ ትልቅ candle ካሳየ በኋላ ዋጋ ያን candle ውስጥ ሆኖ ሲወላወል (High/Low ሳይሰብር) — ይህ Inside Bar ይባላል። ተራ ትሬደሮች ይህን "pullback አልቋል" ብለው ይሳሳታሉ፤ ግን ባንኮች ገና ሊኩዲቲ እየሰበሰቡ ነው — ይህ <b style="color:#e8edf1">Inducement</b> (ማባበያ) ይባላል።</p>
+      <div class="notes">
+        <div class="rule warn"><div class="ico">✕</div><div class="body"><span class="rule-label">NLM ህግ</span>Inside Bar = <b>Invalid Pullback</b> — ምንም አይነት የሊኩዲቲ አደን ያልተካሄደበት እንቅስቃሴ ነው። ብቻውን pullback ወይም ኢንትሪ ምልክት አይሆንም።</div></div>
+      </div>
+      <table class="dtable">
+        <tr><th>ዓይነት</th><th>ትርጓሜ</th></tr>
+        <tr><td>Inside Bar — Mother Candle ውስጥ ዝጋ</td><td class="v-no">INVALID — Inducement</td></tr>
+        <tr><td>Valid Sweep — High/Low ሰብሮ ተመለሰ</td><td class="v-ok">VALID — ፑልባክ</td></tr>
+        <tr><td>Continuation — High/Low ሰብሮ ቀጠለ</td><td class="v-no">Breakout — መከተል</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>🕐 Equal High/Low — የቅርቡ Candle ቅድሚያ ህግ</h3>
+      <p class="desc">ሁለት ተከታታይ candles ጫፎቻቸው ሙሉ ለሙሉ ተመሳሳይ ከሆኑ፣ ማርኬቱ ሁሌም ወቅታዊ ዳታ (Current Data) ቅድሚያ ይሰጣል — ቀዳሚው candle ጫፍ ይናቃል፣ <b style="color:#e8edf1">ቅርቡ candle ብቻ</b> ዋናው Structural Point ይሆናል።</p>
+      <div class="notes" style="margin-top:14px;">
+        <div class="rule info"><div class="ico">i</div><div class="body"><span class="rule-label">ለምን ቅርቡ ቅድሚያ ያገኛል</span>ባንኮች ሊኩዲቲ ሲሰበስቡ ዘለቄታ ያለው Stop Loss ካለበት ጋር ይሄዳሉ — ቀደምቱ Equal Level ቀድሞ ተሰብስቦ ስለሚሆን፣ ቅርቡ ነው አዲሱ ኢላማ።</div></div>
+        <div class="rule ok"><div class="ico">✓</div><div class="body"><span class="rule-label">ሁለቱም ቢሰበሩ</span>Equal High/Low ሁለቱም ሲሰበሩ — ይህ ድርብ Sweep ሲሆን፣ ባንኮች ትልቅ ሊኩዲቲ መሰብሰባቸውን የሚያሳይ በጣም ጠንካራ ምልክት ነው።</div></div>
+        <div class="rule warn"><div class="ico">!</div><div class="body"><span class="rule-label">ቅርቡ ካልተሰበረ</span>ቀዳሚው Equal Level ሲሰበር ቅርቡ ሳይሰበር ቢቀር — Sweep ሙሉ አይደለም። ቅርቡ candle ጫፍ እስኪሰበር ጠብቁ።</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🔗 Pullback ወደ ትርፍ መቀየር — ስትራቴጂካዊ ውህደት</h3>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><span class="t">Valid Pullback አረጋግጥ (Sweep + Close Back)</span></div>
+        <div class="step"><span class="n">2</span><span class="t">Structure Shift ለይ (አዲስ High/Low ተፈጥሯል?)</span></div>
+        <div class="step"><span class="n">3</span><span class="t">Order Flow Shift ወይም Fake Out ሞዴል ምረጥ</span></div>
+        <div class="step"><span class="n">4</span><span class="t">SL = Structural Candle ጫፍ ጥቂት ወደ ኋላ ፣ TP = ቀጣይ ሊኩዲቲ ኢላማ</span></div>
+      </div>
+      <div class="notes">
+        <div class="rule ok"><div class="ico">✓</div><div class="body"><span class="rule-label">ምርጥ ልምምድ</span>Order Flow Shift ስትጠቀሙ — ሁሌ Higher Timeframe ላይ ያለው ዋናው ፍሰት ከ Entry ፍሰት ጋር አንድ አቅጣጫ መሆኑን አረጋግጡ። Confluence = ትልቅ ዕድል።</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LIQUIDITY ============ -->
+  <section class="section" id="liquidity">
+    <div class="section-head"><span class="section-num mono">02.3</span><h2>ሊኩዲቲ — Liquidity Grab, Sweep እና Mitigation</h2></div>
+    <p class="section-desc">ከ NLM ኮርስ የተወሰደ — ማርኬቱን የሚያንቀሳቅሰው ራሱ ሊኩዲቲ (ገንዘብ ፍሰት) ነው። ባንኮች ይህን ፍሰት እንዴት እንደሚጠቀሙበት መረዳት ከሶስቱም ኢንትሪ ሞዴል ጀርባ ያለው ምክንያት ነው።
+
+    </p>
+
+    <div class="card">
+      <h3>🎣 Liquidity Grab — Stop Loss ማደን</h3>
+      <p class="desc" style="margin-bottom:14px;">ትልልቅ የገበያ ተዋንያን (Institutions) የራሳቸውን ግዙፍ ትዕዛዞች ለማስፈጸም ሲሉ፣ ከተራ ነጋዴዎች Stop Loss ጀርባ ያለውን ከፍተኛ ገንዘብ (Liquidity) ፈልገው ዋጋውን ሆን ብለው ወደዛ በመግፋት ይሰበስባሉ።</p>
+      <div class="notes">
+        <div class="rule warn"><div class="ico">!</div><div class="body"><span class="rule-label">ራስን ለመከላከል</span>Stop Loss ን ሁሉም ትሬደር ባስቀመጠው ግልጽ ደረጃ (Obvious Level) ላይ አታስቀምጡ — ትልልቅ ተቋማት በቀጥታ የሚያዩት ቦታ ነው።</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🪝 Fake Out ሎጂክ — Liquidity Sweep</h3>
+      <p class="desc" style="margin-bottom:14px;">ባንኮች ማርኬቱን ከመቀየራቸው በፊት ተራውን ነጋዴ አጥምደው Liquidity ይሰበስባሉ። ማርኬቱ ከቀጠናው ወጥቶ "Fake Breakout" ሲያደርግ፣ የብዙዎችን Stop Loss ይወስዳል።</p>
+      <div class="chain">
+        <div class="chain-step"><b>ደረጃ 1</b><span>ሪቴል ትሬደሮች "Breakout!" ብለው ይገባሉ</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>ደረጃ 2</b><span>ባንኮች የነሱን Stop Loss ሰብስበው Liquidity ይሞላሉ</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>ደረጃ 3</b><span>ባንኮች ወደ ተቃራኒው አቅጣጫ በኃይል ይሄዳሉ</span></div>
+      </div>
+      <div class="notes">
+        <div class="rule warn"><div class="ico">⚠</div><div class="body"><span class="rule-label">ጠቃሚ ማስታወሻ</span>Fake Breakout ሲያዩ ወዲያው አትግቡ — ዋጋው ወደ ቀጠናው ተመልሶ (Pullback) እስኪመጣ ጠብቁ፤ ያ ነው ትክክለኛው Entry ነጥብ።</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⚖️ Orderflow Mitigation / Market Balance — ቁልፍ ቃላት</h3>
+      <p class="desc" style="margin-bottom:14px;">ዋጋው ቀደም ሲል የተተዉ ያልተሞሉ ትዕዛዞችን (Unmitigated Orders) ለመሙላት ወይም የፈጣን ጉዞ ክፍተትን (Imbalance) ለመድፈን ወደ ኋላ ተመልሶ ቀጠናውን የሚነካበት ሂደት ነው — ማርኬቱ "ፍትሃዊ" ለመሆን የሚያደርገው ማስተካከያ።</p>
+      <div class="termgrid">
+        <div class="term"><b>Unmitigated Orders</b><span>ገና ያልተሞሉ / ያልተፈጸሙ ትዕዛዞች</span></div>
+        <div class="term"><b>Imbalance (FVG)</b><span>ፈጣን ጉዞ ፈጥሮ የቀረ የዋጋ ክፍተት</span></div>
+        <div class="term"><b>Mitigation</b><span>ዋጋው ወደ ቀጠናው ተመልሶ Test ሲያደርግ</span></div>
+        <div class="term"><b>Breakeven</b><span>ትዕዛዞቹ ወደ ዜሮ ኪሳራ/ትርፍ ሲደርሱ</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🚗 Momentum Exhaustion — ሊኩዲቲ ማለቅ</h3>
+      <p class="desc" style="margin-bottom:14px;">ማርኬቱ በከፍተኛ ኃይል ወደ አንድ POI (Supply/Demand ወይም All-Time High/Low) ሲመጣ ልክ እንደ ፈጣን መኪና ነው። ቀጣዩ candle "Inside Bar" ከሆነ — ማርኬቱ አዲስ High/Low ለመፍጠር የሚያስችል ተጨማሪ ሊኩዲቲ እንደሌለው ("Failed Auction") ያሳያል፤ ይህ ብዙ ጊዜ የ<b style="color:#e8edf1">Spring Loading</b> (Expansion → Contraction → Explosion) መጀመሪያ ነው።</p>
+      <div class="chain">
+        <div class="chain-step"><b>Expansion</b><span>ትልቅ candle — ከፍተኛ ኃይል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>Contraction</b><span>Inside Bar — ኃይሉ ተጠቅልሏል</span></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-step"><b>Explosion</b><span>ቀጣዩ ትልቅ እንቅስቃሴ — አዲስ አቅጣጫ</span></div>
+      </div>
+      <div class="notes">
+        <div class="rule info"><div class="ico">🔑</div><div class="body"><span class="rule-label">High Probability Secret</span>ይህ ሴትአፕ ኃይለኛ የሚሆነው በ3 ምክንያት ብቻ ነው፦ <b>Location</b> (HTF POI ወይም All-Time High/Low ላይ) + <b>Timing</b> (ትክክለኛ ሰዓት ላይ) + <b>Body Closure Confirmation</b> (ዊክ ብቻ ሳይሆን ሙሉ ቦዲ መዝጋት)።</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. FAKE OUT ============ -->
+  <div class="model-card section" id="fakeout">
+    <div class="model-head"><span class="model-index">1</span><h2>ፌክ አውት <span class="mono" style="color:var(--muted);font-size:12px;">/ Fake Out</span></h2></div>
+    <p class="desc">ቀደም ሲል ብሬክ ተደርጎ ማንነቱ የተቀየረ ይመስል የነበረ ደረጃ፣ ያለምንም ሽፍትና ፑልባክ ተመልሶ ወደ ቀደመው ዞን ይገባል — ማርኬቱ ትክክለኛውን ዳይሬክሽን ከመቀጠሉ በፊት ሊኩዲቲ ብቻ ወስዷል ማለት ነው።</p>
+
+    <div class="steps">
+      <div class="step"><span class="n">1</span><span class="t">ደረጃው ላይ ሪክሽን</span></div>
+      <div class="step"><span class="n">2</span><span class="t">ብሬክ — በዊክ ብቻ</span></div>
+      <div class="step"><span class="n">3</span><span class="t">ተመላሽ — ያለ ሽፍት፣ ያለ ፑልባክ</span></div>
+      <div class="step"><span class="n">4</span><span class="t">ኢንትሪ — ዊክ→ቦዲ ዞን</span></div>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <span class="tag buy">▲ BUY</span>
+        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+          <line x1="148.5" y1="318" x2="286" y2="318" stroke="#e3a94a" stroke-width="1.4" stroke-dasharray="6,4"/>
+          <rect class="entry-zone" x="230.5" y="271.5" width="45" height="46.5" fill="#e3a94a" fill-opacity="0.35" stroke="#e3a94a"/>
+          <polyline class="zz-line" points="98.5,209 148.5,322.5 185,261 206.5,369 230.5,271.5 255.5,318 336,13.5"
+            fill="none" stroke="#e8edf1" stroke-width="2.2"/>
+          <circle class="sweep-dot" cx="206.5" cy="369" r="4.5" fill="#ef5654"/>
+        </svg>
+        <span class="panel-label mono">LIQUIDITY SWEEP → ENTRY</span>
+      </div>
+      <div class="panel">
+        <span class="tag sell">▼ SELL</span>
+        <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+          <line x1="148.5" y1="82" x2="286" y2="82" stroke="#e3a94a" stroke-width="1.4" stroke-dasharray="6,4"/>
+          <rect class="entry-zone" x="230.5" y="82" width="45" height="46.5" fill="#e3a94a" fill-opacity="0.35" stroke="#e3a94a"/>
+          <polyline class="zz-line" points="98.5,191 148.5,77.5 185,139 206.5,31 230.5,128.5 255.5,82 336,386.5"
+            fill="none" stroke="#e8edf1" stroke-width="2.2"/>
+          <circle class="sweep-dot" cx="206.5" cy="31" r="4.5" fill="#ef5654"/>
+        </svg>
+        <span class="panel-label mono">LIQUIDITY SWEEP → ENTRY</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="rule info"><div class="ico">i</div><div class="body"><span class="rule-label">ትርጉም</span>ቀደም ሲል ሪክሽን ተደርጎበት የነበረ ድማንድ (ወይም ሰፕላይ) ዞን ብሬክ ተደርጎ ማንነቱ ተቀይሮ ነበር ብለን ካሰብን በኋላ፣ ፕራይሱ ተመልሶ ወደ ቀደመው ዞን ይገባል — ይሄ ራሱ ፌክ አውት ይባላል።</div></div>
+      <div class="rule warn"><div class="ico">1</div><div class="body"><span class="rule-label">ደንብ — Break Type</span>ብሬኩ በ<b>ዊክ ብቻ</b> መሆን አለበት፤ በ<b>ቦዲ</b> ከዘጋ ("ስትሮንግ ቦዲ ክሎጀር") ያ ኦርደር ፍሎ ሽፍት ወይም ፍሊፕ እንጂ ፌክ አውት አይደለም።</div></div>
+      <div class="rule warn"><div class="ico">2</div><div class="body"><span class="rule-label">ደንብ — ሽፍት አይፈቀድም</span>ወደ ኢንትሪ ኤርያ ሲመለስ <b>ሽፍት (2 ኪሌቭል በአንድ ጊዜ መስበር) ማምጣት የለበትም</b>። ሽፍት ካመጣ ፌክ አውቱ ፌይል አድርጓል ማለት ነው — አንይዘውም።</div></div>
+      <div class="rule warn"><div class="ico">3</div><div class="body"><span class="rule-label">ደንብ — ፑልባክ አይፈቀድም</span>ወደ ኢንትሪ ኤርያ በሚመጣበት ጊዜ <b>ፑልባክ ሰርቶ መምጣት የለበትም</b> — ቀጥ ብሎ (single move) መምጣት አለበት።</div></div>
+      <div class="rule ok"><div class="ico">✓</div><div class="body"><span class="rule-label">ለምን ይሰራል</span>ፌክ አውቱ ወደ ተቃራኒው አቅጣጫ ገብተው የነበሩ ትሬደሮችን ስቶፕ ሎስ (ሊኩዲቲ) ወስዶ ነው ማርኬቱ ትክክለኛውን ዳይሬክሽን የሚቀጥለው — ይሄ የ"Smart Money" ማንፑሌሽን ነው።</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 4. ORDER FLOW SHIFT ============ -->
+  <div class="model-card section" id="ofs">
+    <div class="model-head"><span class="model-index">2</span><h2>ኦርደር ፍሎ ሽፍት <span class="mono" style="color:var(--muted);font-size:12px;">/ Order Flow Shift</span></h2></div>
+    <p class="desc">ድርብ ውስጣዊ ፑልባክ (double-leg) ከፈጠረ በኋላ፣ ማርኬቱ በአንድ ጠንካራ ሙቭ <b style="color:#e8edf1">ሁለት ኪሌቭል</b> በአንድ ጊዜ ይሰብራል — ይሄ ከፍተኛ ቮሊዩም/ገንዘብ ፍሰት ወደዛ አቅጣጫ መኖሩን ያሳያል።</p>
+
+    <div class="steps">
+      <div class="step"><span class="n">1</span><span class="t">ድርብ ፑልባክ (double-leg)</span></div>
+      <div class="step"><span class="n">2</span><span class="t">2 ኪሌቭል በአንድ ጊዜ ብሬክ</span></div>
+      <div class="step"><span class="n">3</span><span class="t">ስትሮንግ ቦዲ ክሎጀር</span></div>
+      <div class="step"><span class="n">4</span><span class="t">ኢንትሪ — ብሬክ ካንድል ላይ</span></div>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <span class="tag buy">▲ BUY</span>
+        <svg viewBox="0 0 360 400" xmlns="http://www.w3.org/2000/svg">
+          <line x1="100" y1="262" x2="320" y2="262" stroke="#e8edf1" stroke-width="1.3" stroke-opacity="0.5"/>
+          <line x1="117" y1="338" x2="292" y2="338" stroke="#e8edf1" stroke-width="1.3" stroke-opacity="0.5"/>
+          <rect class="entry-zone" x="222" y="183" width="72" height="79" fill="#e3a94a" fill-opacity="0.3" stroke="#e3a94a"/>
+          <polyline class="zz-line" points="0,57 122,335 152,262 182,381 230,183 292,262 347,32"
+            fill="none" stroke="#e8edf1" stroke-width="2.2"/>
+          <circle class="entry-dot" cx="192" cy="338" r="4" fill="#20b2a0"/>
+          <circle class="entry-dot" cx="211" cy="262" r="4" fill="#20b2a0"/>
+        </svg>
+        <span class="panel-label mono">2 KILVL BREAK → ENTRY</span>
+      </div>
+      <div class="panel">
+        <span class="tag sell">▼ SELL</span>
+        <svg viewBox="0 0 360 400" xmlns="http://www.w3.org/2000/svg">
+          <line x1="100" y1="138" x2="320" y2="138" stroke="#e8edf1" stroke-width="1.3" stroke-opacity="0.5"/>
+          <line x1="117" y1="62" x2="292" y2="62" stroke="#e8edf1" stroke-width="1.3" stroke-opacity="0.5"/>
+          <rect class="entry-zone" x="222" y="138" width="72" height="79" fill="#e3a94a" fill-opacity="0.3" stroke="#e3a94a"/>
+          <polyline class="zz-line" points="0,343 122,65 152,138 182,19 230,217 292,138 347,368"
+            fill="none" stroke="#e8edf1" stroke-width="2.2"/>
+          <circle class="entry-dot" cx="192" cy="62" r="4" fill="#ef5654"/>
+          <circle class="entry-dot" cx="211" cy="138" r="4" fill="#ef5654"/>
+        </svg>
+        <span class="panel-label mono">2 KILVL BREAK → ENTRY</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="rule info"><div class="ico">i</div><div class="body"><span class="rule-label">ትርጉም</span>ሎወር ታይም ፍሬም <b>ሁለት ኪሌቭል</b> በአንድ ቀጥተኛ ሙቭ ሲሰበሩ ነው ኦርደር ፍሎ ሽፍት የሚባለው — ድማንድ ወደ ሰፕላይ ተቀይሮ፣ ቀጥሎ ያለው ሰፕላይም ወደ ድማንድ ሲቀየር (ወይም ተቃራኒው)።</div></div>
+      <div class="rule warn"><div class="ico">1</div><div class="body"><span class="rule-label">ደንብ — ስትሮንግ ቦዲ ግድ ነው</span>ሁለተኛውን ኪሌቭል የሰበረበት ካንድል <b>ስትሮንግ ቦዲ ክሎጀር</b> ሊኖረው ግድ ነው። ደካማ ቦዲ ወይም በዊክ ብቻ ካለፈ፣ ያ ኦርደር ፍሎ ሽፍት ሳይሆን ፌክ አውት ይሆናል።</div></div>
+      <div class="rule ok"><div class="ico">✓</div><div class="body"><span class="rule-label">ለምን ይሰራል</span>ሁለት ኪሌቭል በአንድ ጊዜ መሰበሩ ከፍተኛ ኦርደር ፍሎ/ገንዘብ ፍሰት ወደዛ ዳይሬክሽን መኖሩን ያሳያል።</div></div>
+      <div class="rule info"><div class="ico">◆</div><div class="body"><span class="rule-label">Entry</span>ሽፍት ያመጣበት (ስትሮንግ ቦዲ የዘጋበት) ኤርያ ላይ ብቻ፣ ያለ ምንም ፑልባክ ዳይሬክት ኢንትሪ እንወስዳለን።</div></div>
+      <div class="rule warn"><div class="ico">!</div><div class="body"><span class="rule-label">ኮንቲኔሽን ትሬድ ላይ</span>ማርኬቱ ተመሳሳይ ትሬንድ ሲቀጥል (Continuation)፣ ከ3ቱ ሞዴል <b>ፍሊፕ አይሰራም</b> — <b>ፌክ አውት እና ኦርደር ፍሎ ሽፍት ብቻ</b> ጥቅም ላይ ይውላሉ፣ እና ማርኬቱ መጀመሪያ <b>ማኒፑሌሽን</b> (ፑልባክ ፈጥሮ ወደ ተቃራኒ አቅጣጫ ማሳየት) ማድረግ አለበት።</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 5. FLIP ============ -->
+  <div class="model-card section" id="flip">
+    <div class="model-head"><span class="model-index">3</span><h2>ፍሊፕ <span class="mono" style="color:var(--muted);font-size:12px;">/ Flip</span></h2></div>
+    <p class="desc">ማርኬቱ <b style="color:#e8edf1">ያለምንም ፑልባክ (single leg)</b> ደረጃውን በቦዲ ይሰብራል፤ ከዛ ተመልሶ ወደ ተሰበረው ኤርያ ሪቴስት ሲያደርግ ብቻ ኢንትሪ እንወስዳለን።</p>
+
+    <div class="steps">
+      <div class="step"><span class="n">1</span><span class="t">ነጠላ እግር ብሬክ (ፑልባክ የለም)</span></div>
+      <div class="step"><span class="n">2</span><span class="t">ቦዲ ክሎዚንግ ኮንፈርም</span></div>
+      <div class="step"><span class="n">3</span><span class="t">ተመላሽ — ያለ ፑልባክ</span></div>
+      <div class="step"><span class="n">4</span><span class="t">ኢንትሪ — ሪቴስት ላይ</span></div>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <span class="tag buy">▲ BUY</span>
+        <svg viewBox="0 0 550 450" xmlns="http://www.w3.org/2000/svg">
+          <line x1="113" y1="347" x2="533" y2="347" stroke="#e8edf1" stroke-width="1.3" stroke-opacity="0.5"/>
+          <rect class="entry-zone" x="248" y="300" width="60" height="47" fill="#e3a94a" fill-opacity="0.3" stroke="#e3a94a"/>
+          <polyline class="zz-line" points="0,33 122,433 150,347 190,404 228,300 267,338 405,40"
+            fill="none" stroke="#e8edf1" stroke-width="2.2"/>
+          <circle class="entry-dot" cx="267" cy="338" r="4.5" fill="#20b2a0"/>
+        </svg>
+        <span class="panel-label mono">SINGLE LEG → RETEST → ENTRY</span>
+      </div>
+      <div class="panel">
+        <span class="tag sell">▼ SELL</span>
+        <svg viewBox="0 0 550 450" xmlns="http://www.w3.org/2000/svg">
+          <line x1="113" y1="103" x2="533" y2="103" stroke="#e8edf1" stroke-width="1.3" stroke-opacity="0.5"/>
+          <rect class="entry-zone" x="248" y="103" width="60" height="47" fill="#e3a94a" fill-opacity="0.3" stroke="#e3a94a"/>
+          <polyline class="zz-line" points="0,417 122,17 150,103 190,46 228,150 267,112 405,410"
+            fill="none" stroke="#e8edf1" stroke-width="2.2"/>
+          <circle class="entry-dot" cx="267" cy="112" r="4.5" fill="#ef5654"/>
+        </svg>
+        <span class="panel-label mono">SINGLE LEG → RETEST → ENTRY</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="rule warn"><div class="ico">1</div><div class="body"><span class="rule-label">ደንብ — ፍፁም ምንም ፑልባክ</span>ፍሊፑ ወደ ተፈጠረበት ደረጃ ድረስ <b>ምንም አይነት ፑልባክ ከግራፍ በኩል መኖር የለበትም</b>። ትንሽም ቢሆን ቫሊድ ፑልባክ (wiggle) ካለ፣ ያ ፍሊፕ ተብሎ አይቆጠርም።</div></div>
+      <div class="rule info"><div class="ico">i</div><div class="body"><span class="rule-label">ብሬክ አውት ኮንፈርሜሽን</span>ኦፕኒንግ እና ክሎዚንግ ከፍሊፑ ኪሌቭል በላይ (ለሴል ደግሞ በታች) ማግኘት አለብን — ይሄ ብሬክ አውቱ በትክክል መደረጉን ያረጋግጣል። ደረጃው ላይ ትንሽ ዊክ ሪክሽን ቢኖረው ችግር የለውም፤ ግን ቫሊድ ፑልባክ ከታየ ፍሊፑ ልክ አይሆንም።</div></div>
+      <div class="rule warn"><div class="ico">2</div><div class="body"><span class="rule-label">ደንብ — ሪቴስት ላይ ፑልባክ</span>ፍሊፕ ወደተደረገበት ኤርያ ተመልሶ ለሪቴስት ሲመጣ፣ <b>ፑልባክ ሰርቶ ከመጣ አሁንም አንገባም</b>። ሊሚት አስቀምጠን ብቻ ነው መጠበቅ ያለብን።</div></div>
+      <div class="rule ok"><div class="ico">✓</div><div class="body"><span class="rule-label">መቼ ጥቅም ላይ ይውላል</span>ማርኬቱ <b>ሪቨርሳል</b> ሲፈጥር ብቻ ነው ፍሊፕ የምንጠቀመው — <b>ኮንቲኔሽን ትሬድ ላይ ፍሊፕ አይሰራም</b>።</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 6. WHEN TO USE WHICH ============ -->
+  <section class="section" id="usage">
+    <div class="section-head"><span class="section-num mono">03</span><h2>መቼ የትኛውን ሞዴል እንጠቀማለን?</h2></div>
+    <p class="section-desc">ማርኬቱ ምን እያደረገ እንዳለ (አዲስ አቅጣጫ እየፈጠረ ወይስ ነባር ትሬንድ እየቀጠለ) በመመስረት፣ ከ3ቱ ሞዴል የትኛው ተግባራዊ እንደሚሆን ይለያያል።</p>
+    <div class="usage-grid">
+      <div class="usage-card reversal">
+        <h4>🔄 ሪቨርሳል — ማርኬቱ አቅጣጫ ሲቀይር</h4>
+        <p class="sub">ማርኬቱ ከነበረበት ትሬንድ ውጪ አዲስ አቅጣጫ ለመፍጠር ሲሞክር።</p>
+        <ul class="usage-list">
+          <li><span class="pill-ok">OK</span>ፌክ አውት</li>
+          <li><span class="pill-ok">OK</span>ኦርደር ፍሎ ሽፍት</li>
+          <li><span class="pill-ok">OK</span>ፍሊፕ</li>
+          <li><span class="pill-ok">OK</span>ሶስቱም ሞዴል ያገለግላሉ</li>
+        </ul>
+      </div>
+      <div class="usage-card continuation">
+        <h4>➡️ ኮንቲኔሽን — ነባር ትሬንድ ሲቀጥል</h4>
+        <p class="sub">ማርኬቱ ቀድሞ ወደ ነበረበት ዋና አቅጣጫ ብቻ ሲቀጥል።</p>
+        <ul class="usage-list">
+          <li><span class="pill-ok">OK</span>ፌክ አውት</li>
+          <li><span class="pill-ok">OK</span>ኦርደር ፍሎ ሽፍት</li>
+          <li><span class="pill-no">NO</span>ፍሊፕ አይጠቀምም</li>
+          <li><span class="pill-ok">OK</span><b style="color:#e3a94a">ማኒፑሌሽን ግድ ነው</b> — ፑልባክ ፈጥሮ ወደ ተቃራኒ ማሳየት አለበት፣ ከሌለ ትሬድ የለም</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7. VALID VS INVALID LOSS ============ -->
+  <section class="section" id="lossreview">
+    <div class="section-head"><span class="section-num mono">04</span><h2>ሎስ ስንገመግም — ቫሊድ ሎስ vs ኢንቫሊድ ሎስ</h2></div>
+    <p class="section-desc">ባክቴስት ስናደርግ እያንዳንዱን ሉዚንግ ትሬድ በጥሞና መገምገም ያስፈልጋል። ሁሉም ሎስ ስህተት አይደለም — ስትራቴጂው 100% አያሸንፍም፣ ፕሮባቢሊቲ ብቻ ነው።</p>
+    <div class="loss-grid">
+      <div class="loss-card valid">
+        <h4 style="color:var(--blue)">◆ ቫሊድ ሎስ (ተቀባይነት ያለው)</h4>
+        <ul>
+          <li>ሶስቱም ኢንትሪ ደንቦች ሙሉ በሙሉ ተከትለን ገብተናል፣ ግን ማርኬቱ በተቃራኒ ሄዷል።</li>
+          <li>ኤስኤላችን በትክክለኛው ቦታ (ከቦዲው ውጪ ማርጅን ጨምረን) ተቀምጦ ነበር።</li>
+          <li>ከሃየር ታይም ፍሬም አንፃርም ቢሆን ቴክኒካሊ ትክክለኛ ውሳኔ ነበር።</li>
+          <li>➜ ይሄ በቃ <b style="color:#fff">ፕሮባቢሊቲ</b> ነው፤ ማንም ስትራቴጂ 100% አያሸንፍም — ተቀብለን እንቀጥላለን።</li>
+        </ul>
+      </div>
+      <div class="loss-card invalid">
+        <h4 style="color:var(--sell)">✕ ኢንቫሊድ ሎስ (የደንብ ጥሰት)</h4>
+        <ul>
+          <li>ማርኬቱ ወደ ኢንትሪ ዞናችን ገና <b>ፑልባክ ሰርቶ</b> እየመጣ ሳለ ቀድመን ገብተናል።</li>
+          <li>ፌክ አውት/ሽፍት/ፍሊፕ ደረጃው ገና <b>ሳይደርስ</b> ወይም <b>ሳይመጣ</b> ገብተናል።</li>
+          <li>ተዛማጅ (correlated) ጥንድ ወይም ኢንዴክስ (ለምሳሌ DXY vs USDJPY) <b>የሚጋጭ መረጃ</b> ሲሰጡ ትሬዱን ችላ ብለን ገብተናል — ሁለት የሚጋጭ መረጃ ሲኖር ትሬዱን ማስቀረት ነበረብን።</li>
+          <li>➜ ይሄ <b style="color:#fff">ስህተት</b> ነው — ለቀጣይ ትሬድ እንደ ትምህርት እንይዘዋለን፣ አንደግመውም።</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 8. SUMMARY ============ -->
+  <section class="section" id="summary">
+    <div class="section-head"><span class="section-num mono">05</span><h2>ማጠቃለያ ደንቦች</h2></div>
+    <div class="summary-card">
+      <h3 class="mono">🔑 GENERAL RULES — ለሶስቱም ሞዴሎች</h3>
+      <ul>
+        <li>ከ3ቱ ኢንትሪ ሞዴል <b>አንዱ ብቻ</b> መሟላት አለበት ማርኬት ውስጥ ለመግባት — ምንም ካላሟላ <b>አንገባም</b>።</li>
+        <li>ፑልባክ ካለው ብቻ፡ <b>ፌክ አውት</b> ወይም <b>ኦርደር ፍሎ ሽፍት</b> እንጠቀማለን። ፑልባክ ከሌለው (single leg)፡ <b>ፍሊፕ</b> ብቻ እንጠቀማለን።</li>
+        <li>ኮንቲኔሽን ትሬድ ላይ ፍሊፕ አንጠቀምም — <b>ማኒፑሌሽን</b> ብቻ ነው የምንፈልገው (ፌክ አውት ወይም ኦርደር ፍሎ ሽፍት)።</li>
+        <li>ኢንትሪ ዞን ሁልጊዜ <b>ከዊኩ እስከ ቦዲው</b> ብቻ ነው፤ ኤስኤል ደግሞ ከቦዲው ውጪ ተጨማሪ ማርጅን ይይዛል።</li>
+        <li>ማንኛውም ትሬድ 100% ዋስትና የለውም — <b>ፕሮባቢሊቲ</b> ብቻ ነው፤ ትክክለኛ ኤስኤል/ሪስክ ማኔጅመንት ማድረግ ግድ ነው።</li>
+        <li>ውሳኔ ከመስጠትዎ በፊት ሁልጊዜ ወደ <b>ከፍ ያለ ታይም ፍሬም</b> እና ተዛማጅ ገበያዎች ተመልከቱ — የሚጋጭ መረጃ ካለ ትሬዱን አስቀሩ።</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="h">ይህን ገፅ ደጋግማችሁ ተመልከቱት — እያንዳንዱ ሞዴል በተግባር እስኪገባችሁ ድረስ በላይቭ ማርኬት ላይ ተለማመዱት.</div>
+</footer>
+
+</body>
+</html>
